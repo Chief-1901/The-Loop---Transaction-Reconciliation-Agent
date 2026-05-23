@@ -69,7 +69,33 @@ def test_plan_provider_override_switches_to_openai(monkeypatch):
     try:
         spec = router_mod._route_for("plan")
         assert spec.provider == "openai"
-        assert spec.model == "gpt-4o-mini"
+        assert spec.model == "gpt-4o"
+    finally:
+        monkeypatch.delenv("PLAN_PROVIDER", raising=False)
+        importlib.reload(router_mod)
+
+
+def test_plan_provider_override_does_not_affect_decide(monkeypatch):
+    monkeypatch.setenv("PLAN_PROVIDER", "openai")
+    import recon_agent.llm.router as router_mod
+    importlib.reload(router_mod)
+    try:
+        spec = router_mod._route_for("decide")
+        # decide should use gemini (from ROUTING_TABLE), not affected by PLAN_PROVIDER
+        assert spec.provider == "gemini"
+    finally:
+        monkeypatch.delenv("PLAN_PROVIDER", raising=False)
+        importlib.reload(router_mod)
+
+
+def test_plan_provider_override_does_not_affect_propose(monkeypatch):
+    monkeypatch.setenv("PLAN_PROVIDER", "openai")
+    import recon_agent.llm.router as router_mod
+    importlib.reload(router_mod)
+    try:
+        spec = router_mod._route_for("propose")
+        # propose should use gemini (from ROUTING_TABLE), not affected by PLAN_PROVIDER
+        assert spec.provider == "gemini"
     finally:
         monkeypatch.delenv("PLAN_PROVIDER", raising=False)
         importlib.reload(router_mod)

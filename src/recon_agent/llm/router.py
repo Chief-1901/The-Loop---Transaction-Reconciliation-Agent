@@ -37,9 +37,8 @@ ROUTING_TABLE: dict[str, RouteSpec] = {
 
 
 def _route_for(subtask: str) -> RouteSpec:
-    if PLAN_PROVIDER_OVERRIDE == "openai":
-        if subtask in ("plan", "decide", "propose"):
-            return RouteSpec("openai", "gpt-4o-mini", "PLAN_PROVIDER=openai override")
+    if subtask == "plan" and PLAN_PROVIDER_OVERRIDE == "openai":
+        return RouteSpec("openai", "gpt-4o", "PLAN_PROVIDER override for comparison eval")
     return ROUTING_TABLE[subtask]
 
 

@@ -133,7 +133,46 @@ class AgentLoop:
 
         return self._build_report()
 
+    def _write_partial_report(self, breach_message: str) -> None:
+        path = self.run_dir / "PARTIAL_REPORT.md"
+        last_3 = self.state.tool_calls[-3:]
+        lines = [
+            f"# Partial Report — run {self.state.run_id}",
+            "",
+            f"**Status:** halted",
+            f"**Halt reason:** budget breach — {breach_message}",
+            f"**Step:** {self.state.step}",
+            f"**Last phase:** {self.state.current_phase}",
+            "",
+            "## Completed",
+            f"- CSV loaded: {self.state.csv_loaded}",
+            f"- API loaded: {self.state.api_loaded}",
+            f"- Timezone normalized: {self.state.timezone_normalized}",
+            f"- Matches: {len(self.state.matches)}",
+            f"- Discrepancies classified: {len(self.state.discrepancies)}",
+            f"- Proposals: {len(self.state.proposals)}",
+            f"- Corrections applied: {self.state.corrections_applied}",
+            "",
+            "## Pending",
+            ("- Unverified reconciliation: yes" if not any(
+                c.tool_name == "verify_reconciliation" for c in self.state.tool_calls
+            ) else "- Verification: done"),
+            "",
+            "## Last 3 tool calls",
+        ]
+        for c in last_3:
+            lines.append(f"- step={c.step} {c.tool_name} {c.outcome} ({c.latency_ms}ms)")
+        lines.extend([
+            "",
+            "## Last decision reasoning",
+            f"> {self.state.last_decision_reasoning}",
+            "",
+        ])
+        path.write_text("\n".join(lines), encoding="utf-8")
+
     def _halt(self, reason: str) -> None:
+        if reason.startswith("budget breach"):
+            self._write_partial_report(reason)
         decision = DecideOutput(
             next_phase=Phase.HALT, halt_reason=reason,
             reasoning=f"forced halt: {reason}",

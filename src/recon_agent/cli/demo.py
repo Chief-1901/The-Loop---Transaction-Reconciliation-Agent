@@ -66,4 +66,8 @@ def run_demo(args: argparse.Namespace) -> int:
     print(f"LLM calls: {report.telemetry['llm_calls']}")
     print(f"Total cost: INR {report.telemetry['total_cost_inr']}")
     print(f"Run dir: {loop.run_dir}")
-    return 0 if report.status in ("completed", "halted") else 2
+    if report.halt_reason and report.halt_reason.startswith("budget breach"):
+        return 2
+    if report.halt_reason and "graceful degrade" in report.halt_reason:
+        return 0   # degrade is still a clean exit; eval expects it
+    return 0

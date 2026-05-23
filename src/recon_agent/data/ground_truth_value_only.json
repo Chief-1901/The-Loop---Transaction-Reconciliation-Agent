@@ -1,0 +1,252 @@
+{
+  "fixture_seed": 42,
+  "variant": "value_only",
+  "total_txns": 500,
+  "generated_at": "2026-05-23T07:03:58.091765+00:00",
+  "expected_summary": {
+    "value_mismatch": 15,
+    "_total": 15
+  },
+  "injected": [
+    {
+      "txn_id": "TX-2026-00280",
+      "kind": "value_mismatch",
+      "csv": {
+        "order_value_inr": 10259.67
+      },
+      "api": {
+        "gross_amount": 10260.99
+      },
+      "expected_correction": {
+        "field": "gross_amount",
+        "old": 10260.99,
+        "new": 10259.67,
+        "reason_contains": "rounding"
+      }
+    },
+    {
+      "txn_id": "TX-2026-00247",
+      "kind": "value_mismatch",
+      "csv": {
+        "order_value_inr": 2799.68
+      },
+      "api": {
+        "gross_amount": 2799.01
+      },
+      "expected_correction": {
+        "field": "gross_amount",
+        "old": 2799.01,
+        "new": 2799.68,
+        "reason_contains": "rounding"
+      }
+    },
+    {
+      "txn_id": "TX-2026-00318",
+      "kind": "value_mismatch",
+      "csv": {
+        "order_value_inr": 1525.57
+      },
+      "api": {
+        "gross_amount": 1529.01
+      },
+      "expected_correction": {
+        "field": "gross_amount",
+        "old": 1529.01,
+        "new": 1525.57,
+        "reason_contains": "rounding"
+      }
+    },
+    {
+      "txn_id": "TX-2026-00373",
+      "kind": "value_mismatch",
+      "csv": {
+        "order_value_inr": 400.08
+      },
+      "api": {
+        "gross_amount": 400.99
+      },
+      "expected_correction": {
+        "field": "gross_amount",
+        "old": 400.99,
+        "new": 400.08,
+        "reason_contains": "rounding"
+      }
+    },
+    {
+      "txn_id": "TX-2026-00072",
+      "kind": "value_mismatch",
+      "csv": {
+        "order_value_inr": 1419.68
+      },
+      "api": {
+        "gross_amount": 1419.01
+      },
+      "expected_correction": {
+        "field": "gross_amount",
+        "old": 1419.01,
+        "new": 1419.68,
+        "reason_contains": "rounding"
+      }
+    },
+    {
+      "txn_id": "TX-2026-00355",
+      "kind": "value_mismatch",
+      "csv": {
+        "order_value_inr": 3936.59
+      },
+      "api": {
+        "gross_amount": 3940.99
+      },
+      "expected_correction": {
+        "field": "gross_amount",
+        "old": 3940.99,
+        "new": 3936.59,
+        "reason_contains": "rounding"
+      }
+    },
+    {
+      "txn_id": "TX-2026-00357",
+      "kind": "value_mismatch",
+      "csv": {
+        "order_value_inr": 1194.48
+      },
+      "api": {
+        "gross_amount": 1189.01
+      },
+      "expected_correction": {
+        "field": "gross_amount",
+        "old": 1189.01,
+        "new": 1194.48,
+        "reason_contains": "rounding"
+      }
+    },
+    {
+      "txn_id": "TX-2026-00342",
+      "kind": "value_mismatch",
+      "csv": {
+        "order_value_inr": 660.66
+      },
+      "api": {
+        "gross_amount": 660.99
+      },
+      "expected_correction": {
+        "field": "gross_amount",
+        "old": 660.99,
+        "new": 660.66,
+        "reason_contains": "rounding"
+      }
+    },
+    {
+      "txn_id": "TX-2026-00009",
+      "kind": "value_mismatch",
+      "csv": {
+        "order_value_inr": 1314.72
+      },
+      "api": {
+        "gross_amount": 1309.01
+      },
+      "expected_correction": {
+        "field": "gross_amount",
+        "old": 1309.01,
+        "new": 1314.72,
+        "reason_contains": "rounding"
+      }
+    },
+    {
+      "txn_id": "TX-2026-00192",
+      "kind": "value_mismatch",
+      "csv": {
+        "order_value_inr": 513.33
+      },
+      "api": {
+        "gross_amount": 509.01
+      },
+      "expected_correction": {
+        "field": "gross_amount",
+        "old": 509.01,
+        "new": 513.33,
+        "reason_contains": "rounding"
+      }
+    },
+    {
+      "txn_id": "TX-2026-00298",
+      "kind": "value_mismatch",
+      "csv": {
+        "order_value_inr": 384.72
+      },
+      "api": {
+        "gross_amount": 380.99
+      },
+      "expected_correction": {
+        "field": "gross_amount",
+        "old": 380.99,
+        "new": 384.72,
+        "reason_contains": "rounding"
+      }
+    },
+    {
+      "txn_id": "TX-2026-00463",
+      "kind": "value_mismatch",
+      "csv": {
+        "order_value_inr": 627.16
+      },
+      "api": {
+        "gross_amount": 630.99
+      },
+      "expected_correction": {
+        "field": "gross_amount",
+        "old": 630.99,
+        "new": 627.16,
+        "reason_contains": "rounding"
+      }
+    },
+    {
+      "txn_id": "TX-2026-00339",
+      "kind": "value_mismatch",
+      "csv": {
+        "order_value_inr": 2192.5
+      },
+      "api": {
+        "gross_amount": 2190.99
+      },
+      "expected_correction": {
+        "field": "gross_amount",
+        "old": 2190.99,
+        "new": 2192.5,
+        "reason_contains": "rounding"
+      }
+    },
+    {
+      "txn_id": "TX-2026-00269",
+      "kind": "value_mismatch",
+      "csv": {
+        "order_value_inr": 221.32
+      },
+      "api": {
+        "gross_amount": 219.01
+      },
+      "expected_correction": {
+        "field": "gross_amount",
+        "old": 219.01,
+        "new": 221.32,
+        "reason_contains": "rounding"
+      }
+    },
+    {
+      "txn_id": "TX-2026-00022",
+      "kind": "value_mismatch",
+      "csv": {
+        "order_value_inr": 23434.15
+      },
+      "api": {
+        "gross_amount": 23429.01
+      },
+      "expected_correction": {
+        "field": "gross_amount",
+        "old": 23429.01,
+        "new": 23434.15,
+        "reason_contains": "rounding"
+      }
+    }
+  ]
+}

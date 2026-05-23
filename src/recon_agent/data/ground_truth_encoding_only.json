@@ -1,0 +1,82 @@
+{
+  "fixture_seed": 42,
+  "variant": "encoding_only",
+  "total_txns": 500,
+  "generated_at": "2026-05-23T07:03:57.575378+00:00",
+  "expected_summary": {
+    "encoding_corruption": 5,
+    "_total": 5
+  },
+  "injected": [
+    {
+      "txn_id": "TX-2026-00280",
+      "kind": "encoding_corruption",
+      "csv": {
+        "merchant": "Uber"
+      },
+      "api": {},
+      "expected_correction": {
+        "field": "merchant",
+        "old": "Uber",
+        "new": "Uber",
+        "reason_contains": "encoding"
+      }
+    },
+    {
+      "txn_id": "TX-2026-00247",
+      "kind": "encoding_corruption",
+      "csv": {
+        "merchant": "Cleârtrip"
+      },
+      "api": {},
+      "expected_correction": {
+        "field": "merchant",
+        "old": "Cleârtrip",
+        "new": "Cleartrip",
+        "reason_contains": "encoding"
+      }
+    },
+    {
+      "txn_id": "TX-2026-00318",
+      "kind": "encoding_corruption",
+      "csv": {
+        "merchant": "Myntrâ"
+      },
+      "api": {},
+      "expected_correction": {
+        "field": "merchant",
+        "old": "Myntrâ",
+        "new": "Myntra",
+        "reason_contains": "encoding"
+      }
+    },
+    {
+      "txn_id": "TX-2026-00373",
+      "kind": "encoding_corruption",
+      "csv": {
+        "merchant": "Zomâto"
+      },
+      "api": {},
+      "expected_correction": {
+        "field": "merchant",
+        "old": "Zomâto",
+        "new": "Zomato",
+        "reason_contains": "encoding"
+      }
+    },
+    {
+      "txn_id": "TX-2026-00072",
+      "kind": "encoding_corruption",
+      "csv": {
+        "merchant": "Lenskârt"
+      },
+      "api": {},
+      "expected_correction": {
+        "field": "merchant",
+        "old": "Lenskârt",
+        "new": "Lenskart",
+        "reason_contains": "encoding"
+      }
+    }
+  ]
+}

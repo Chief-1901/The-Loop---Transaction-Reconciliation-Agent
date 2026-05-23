@@ -1,8 +1,8 @@
 {
   "fixture_seed": 42,
-  "variant": "default",
+  "variant": "default_disabled_api",
   "total_txns": 500,
-  "generated_at": "2026-05-23T07:03:58.355424+00:00",
+  "generated_at": "2026-05-23T07:03:58.639543+00:00",
   "expected_summary": {
     "value_mismatch": 15,
     "timezone_shift": 25,

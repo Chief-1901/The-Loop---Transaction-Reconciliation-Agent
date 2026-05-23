@@ -1,16 +1,15 @@
 {
   "fixture_seed": 42,
-  "variant": "default",
+  "variant": "default_latin1_csv",
   "total_txns": 500,
-  "generated_at": "2026-05-23T07:03:58.355424+00:00",
+  "generated_at": "2026-05-23T07:03:58.906077+00:00",
   "expected_summary": {
     "value_mismatch": 15,
     "timezone_shift": 25,
     "duplicate": 10,
     "missing_in_api": 10,
-    "missing_in_csv": 2,
     "encoding_corruption": 5,
-    "_total": 67
+    "_total": 65
   },
   "injected": [
     {
@@ -945,57 +944,57 @@
     },
     {
       "txn_id": "TX-2026-00088",
-      "kind": "missing_in_csv",
-      "csv": {},
-      "api": {
-        "reference_id": "TX-2026-00088"
-      },
-      "expected_correction": {
-        "field": "_existence",
-        "old": "absent_in_csv",
-        "new": "csv_backfill",
-        "reason_contains": "tracking_miss"
-      }
-    },
-    {
-      "txn_id": "TX-2026-00197",
-      "kind": "missing_in_csv",
-      "csv": {},
-      "api": {
-        "reference_id": "TX-2026-00197"
-      },
-      "expected_correction": {
-        "field": "_existence",
-        "old": "absent_in_csv",
-        "new": "csv_backfill",
-        "reason_contains": "tracking_miss"
-      }
-    },
-    {
-      "txn_id": "TX-2026-00230",
       "kind": "encoding_corruption",
       "csv": {
-        "merchant": "Myntrâ"
+        "merchant": "BoAt"
       },
       "api": {},
       "expected_correction": {
         "field": "merchant",
-        "old": "Myntrâ",
-        "new": "Myntra",
+        "old": "BoAt",
+        "new": "BoAt",
         "reason_contains": "encoding"
       }
     },
     {
-      "txn_id": "TX-2026-00389",
+      "txn_id": "TX-2026-00197",
       "kind": "encoding_corruption",
       "csv": {
-        "merchant": "Zomâto"
+        "merchant": "MâkeMyTrip"
       },
       "api": {},
       "expected_correction": {
         "field": "merchant",
-        "old": "Zomâto",
-        "new": "Zomato",
+        "old": "MâkeMyTrip",
+        "new": "MakeMyTrip",
+        "reason_contains": "encoding"
+      }
+    },
+    {
+      "txn_id": "TX-2026-00228",
+      "kind": "encoding_corruption",
+      "csv": {
+        "merchant": "Swiggy"
+      },
+      "api": {},
+      "expected_correction": {
+        "field": "merchant",
+        "old": "Swiggy",
+        "new": "Swiggy",
+        "reason_contains": "encoding"
+      }
+    },
+    {
+      "txn_id": "TX-2026-00387",
+      "kind": "encoding_corruption",
+      "csv": {
+        "merchant": "Lenskârt"
+      },
+      "api": {},
+      "expected_correction": {
+        "field": "merchant",
+        "old": "Lenskârt",
+        "new": "Lenskart",
         "reason_contains": "encoding"
       }
     },
@@ -1010,34 +1009,6 @@
         "field": "merchant",
         "old": "Amâzon",
         "new": "Amazon",
-        "reason_contains": "encoding"
-      }
-    },
-    {
-      "txn_id": "TX-2026-00053",
-      "kind": "encoding_corruption",
-      "csv": {
-        "merchant": "Flipkârt"
-      },
-      "api": {},
-      "expected_correction": {
-        "field": "merchant",
-        "old": "Flipkârt",
-        "new": "Flipkart",
-        "reason_contains": "encoding"
-      }
-    },
-    {
-      "txn_id": "TX-2026-00427",
-      "kind": "encoding_corruption",
-      "csv": {
-        "merchant": "Mâmâeârth"
-      },
-      "api": {},
-      "expected_correction": {
-        "field": "merchant",
-        "old": "Mâmâeârth",
-        "new": "Mamaearth",
         "reason_contains": "encoding"
       }
     }

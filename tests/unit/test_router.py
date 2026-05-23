@@ -42,7 +42,7 @@ def test_routing_table_models_non_empty():
 def test_plan_uses_gemini_by_default():
     spec = _route_for("plan")
     assert spec.provider == "gemini"
-    assert "gemini-2.5-pro" in spec.model
+    assert spec.model == "gemini-2.5-flash"
 
 
 def test_classify_uses_openai_mini():

@@ -24,8 +24,8 @@ class RouteSpec:
 PLAN_PROVIDER_OVERRIDE = os.environ.get("PLAN_PROVIDER")
 
 ROUTING_TABLE: dict[str, RouteSpec] = {
-    "plan":        RouteSpec("gemini", "gemini-2.5-pro",   "Reasoning-heavy; drives every iteration."),
-    "decide":      RouteSpec("gemini", "gemini-2.5-pro",   "Meta-cognition; same bar as plan."),
+    "plan":        RouteSpec("gemini", "gemini-2.5-flash", "Cost-optimized for free-tier daily quota. Flash handles ReAct-style single-step planning with structured output reliably; Pro reserved for shadow-comparison if needed."),
+    "decide":      RouteSpec("gemini", "gemini-2.5-flash", "Meta-cognition gated by structured-output schema (HALT|PLAN binary). Flash is sufficient."),
     "classify":    RouteSpec("openai", "gpt-4o-mini",       "Cheap structured classification."),
     "summary":     RouteSpec("gemini", "gemini-2.5-flash", "One call, NL only, cheap."),
     "shadow_plan": RouteSpec("openai", "gpt-4o",            "Apples-to-apples capable comparison."),

@@ -7,7 +7,7 @@ from typing import Any
 from pydantic import BaseModel
 
 from .budget import Budget, check as budget_check
-from .phases import Phase, Plan, Decide
+from .phases import Phase, Plan, Decide, Act, Observe
 from .state import AgentState, DecideOutput, LLMCallRecord
 
 
@@ -50,6 +50,12 @@ class AgentLoop:
         self.max_iterations = max_iterations
         self.plan_phase = Plan(self.router, self.tools, self.logger)
         self.decide_phase = Decide(self.router, self.logger)
+        self.act_phase = Act(self.tools, self.logger)
+        self.observe_phase = Observe(self.logger)
+        # Inject the router into LLM-backed tools (classify_discrepancy, propose_correction)
+        from ..tools.registry import ToolRegistry
+        if hasattr(self.tools, "bind_router"):
+            self.tools.bind_router(self.router)
 
     def run(self) -> ReconciliationReport:
         self.state.snapshot_to_disk(self.run_dir)
@@ -72,11 +78,18 @@ class AgentLoop:
                 self._halt(f"plan exception: {type(e).__name__}: {e}")
                 break
 
-            # ACT — Phase 2 stub: just record that we'd call the tool
-            # Real Act lands in Phase 4 when tools are real
-            observation = (
-                f"(stub) would call {plan_out.intended_tool} with {plan_out.tool_args}"
-            )
+            # ACT — call the real tool
+            act_out = self.act_phase.run(plan_out, self.state)
+            self.state.tool_calls.append(act_out.raw_record)
+
+            if act_out.error:
+                # Phase 4: no recovery layer yet (lands in Phase 5)
+                # Just increment failure count and produce an error observation
+                self.state.consecutive_failures += 1
+                observation = f"FAILED {act_out.tool_name}: {act_out.error.code}"
+            else:
+                self.state.consecutive_failures = 0
+                observation = self.observe_phase.run(act_out, self.state)
 
             # DECIDE
             try:

@@ -23,19 +23,23 @@ class RouteSpec:
 # Override via PLAN_PROVIDER=openai for the comparison eval (Phase 8)
 PLAN_PROVIDER_OVERRIDE = os.environ.get("PLAN_PROVIDER")
 
+# Allow overriding Gemini model via env var (e.g. if gemini-2.5-flash hits daily quota)
+_GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+
 ROUTING_TABLE: dict[str, RouteSpec] = {
-    "plan":        RouteSpec("gemini", "gemini-2.5-flash", "Cost-optimized for free-tier daily quota. Flash handles ReAct-style single-step planning with structured output reliably; Pro reserved for shadow-comparison if needed."),
-    "decide":      RouteSpec("gemini", "gemini-2.5-flash", "Meta-cognition gated by structured-output schema (HALT|PLAN binary). Flash is sufficient."),
-    "classify":    RouteSpec("openai", "gpt-4o-mini",       "Cheap structured classification."),
-    "summary":     RouteSpec("gemini", "gemini-2.5-flash", "One call, NL only, cheap."),
-    "shadow_plan": RouteSpec("openai", "gpt-4o",            "Apples-to-apples capable comparison."),
-    "propose":     RouteSpec("gemini", "gemini-2.5-flash", "Per-correction LLM call; cheap."),
+    "plan":        RouteSpec("gemini", _GEMINI_MODEL, "Cost-optimized for free-tier daily quota. Flash handles ReAct-style single-step planning with structured output reliably; Pro reserved for shadow-comparison if needed."),
+    "decide":      RouteSpec("gemini", _GEMINI_MODEL, "Meta-cognition gated by structured-output schema (HALT|PLAN binary). Flash is sufficient."),
+    "classify":    RouteSpec("openai", "gpt-4o-mini",  "Cheap structured classification."),
+    "summary":     RouteSpec("gemini", _GEMINI_MODEL, "One call, NL only, cheap."),
+    "shadow_plan": RouteSpec("openai", "gpt-4o",       "Apples-to-apples capable comparison."),
+    "propose":     RouteSpec("gemini", _GEMINI_MODEL, "Per-correction LLM call; cheap."),
 }
 
 
 def _route_for(subtask: str) -> RouteSpec:
-    if subtask == "plan" and PLAN_PROVIDER_OVERRIDE == "openai":
-        return RouteSpec("openai", "gpt-4o", "PLAN_PROVIDER override for comparison eval")
+    if PLAN_PROVIDER_OVERRIDE == "openai":
+        if subtask in ("plan", "decide", "propose"):
+            return RouteSpec("openai", "gpt-4o-mini", "PLAN_PROVIDER=openai override")
     return ROUTING_TABLE[subtask]
 
 

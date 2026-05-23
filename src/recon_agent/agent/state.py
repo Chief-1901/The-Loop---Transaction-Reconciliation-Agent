@@ -82,6 +82,10 @@ class AgentState(BaseModel):
     txns_api: list[dict] = Field(default_factory=list)
     timezone_normalized: bool = False
     matches: list[dict] = Field(default_factory=list)
+    unmatched_csv: list[dict] = Field(default_factory=list)
+    unmatched_api: list[dict] = Field(default_factory=list)
+    value_conflicts: list[dict] = Field(default_factory=list)
+    timezone_suspects: list[str] = Field(default_factory=list)
     discrepancies: list[Discrepancy] = Field(default_factory=list)
     proposals: list[CorrectionProposal] = Field(default_factory=list)
     corrections_applied: int = 0
@@ -104,4 +108,4 @@ class AgentState(BaseModel):
 
     def snapshot_to_disk(self, run_dir: Path) -> None:
         path = run_dir / f"step_{self.step:03d}.json"
-        path.write_text(self.model_dump_json(indent=2))
+        path.write_text(self.model_dump_json(indent=2), encoding="utf-8")

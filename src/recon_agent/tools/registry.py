@@ -2,7 +2,7 @@ from __future__ import annotations
 import importlib
 import inspect
 import pkgutil
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from .base import Tool
 
@@ -48,3 +48,10 @@ class ToolRegistry:
     @classmethod
     def schemas_for_llm(cls, disabled: set[str] = frozenset()) -> list[dict]:
         return [t.describe() for t in cls.available(disabled)]
+
+    @classmethod
+    def bind_router(cls, router: Any) -> None:
+        """Inject the router into LLM-backed tools (classify_discrepancy, propose_correction)."""
+        for tool in cls._tools.values():
+            if hasattr(tool, "router") and tool.router is None:
+                tool.router = router

@@ -6,6 +6,76 @@ from typing import Any
 from pydantic import BaseModel
 
 
+def _dereference_schema(schema: dict, defs: dict) -> dict:
+    """Recursively resolve $ref references using $defs."""
+    if "$ref" in schema:
+        ref = schema["$ref"]
+        # e.g. "#/$defs/CorrectionProposal" -> "CorrectionProposal"
+        name = ref.split("/")[-1]
+        if name in defs:
+            resolved = dict(defs[name])
+            # Merge any other keys from original schema
+            for k, v in schema.items():
+                if k != "$ref":
+                    resolved[k] = v
+            return _dereference_schema(resolved, defs)
+    result = {}
+    for k, v in schema.items():
+        if k == "$defs":
+            continue  # strip defs from output
+        if isinstance(v, dict):
+            result[k] = _dereference_schema(v, defs)
+        elif isinstance(v, list):
+            result[k] = [_dereference_schema(i, defs) if isinstance(i, dict) else i for i in v]
+        else:
+            result[k] = v
+    return result
+
+
+def sanitize_schema_for_openai(schema: dict | list | object) -> dict | list | object:
+    """Recursively prepare a JSON schema for OpenAI strict mode.
+
+    OpenAI strict mode requires:
+    - additionalProperties: false on all object types
+    - required: list must include every key in properties
+    - All object schemas must have a 'properties' key (even if empty {})
+    - No $ref/$defs (must be dereferenced inline)
+    - No 'default' values (they conflict with required)
+    - No 'title' keys
+    """
+    # First dereference any $ref/$defs in the top-level schema
+    if isinstance(schema, dict) and "$defs" in schema:
+        defs = schema.get("$defs", {})
+        schema = _dereference_schema(schema, defs)
+
+    def _sanitize(s: Any) -> Any:
+        if isinstance(s, dict):
+            cleaned = {k: _sanitize(v) for k, v in s.items()
+                       if k not in ("default", "title", "additionalProperties", "$defs", "$ref")}
+            if cleaned.get("type") == "object" or "properties" in cleaned:
+                cleaned["additionalProperties"] = False
+                if "properties" not in cleaned:
+                    cleaned["properties"] = {}
+                cleaned["required"] = sorted(cleaned["properties"].keys())
+            # Fix anyOf with bare {} (any type) — simplify to just string/null for OpenAI
+            if "anyOf" in cleaned:
+                any_of = cleaned["anyOf"]
+                # If one option is {} (unrestricted), replace whole anyOf with string or null
+                if any(v == {} for v in any_of):
+                    non_null = [v for v in any_of if v != {} and v != {"type": "null"}]
+                    null_opt = [{"type": "null"}] if any(v == {"type": "null"} for v in any_of) else []
+                    if non_null:
+                        cleaned["anyOf"] = non_null + null_opt
+                    else:
+                        cleaned = {"type": "string"}  # fallback
+            return cleaned
+        if isinstance(s, list):
+            return [_sanitize(item) for item in s]
+        return s
+
+    return _sanitize(schema)
+
+
 def sanitize_schema_for_gemini(schema: dict | list | object) -> dict | list | object:
     """Recursively remove keys that Gemini Developer API rejects from a JSON schema.
 
@@ -102,6 +172,8 @@ def openai_call(
     client = OpenAI(api_key=os.environ["OPENAI_API_KEY"], timeout=timeout_s)
     started = time.time()
 
+    strict_schema = sanitize_schema_for_openai(response_schema.model_json_schema())
+
     try:
         resp = client.chat.completions.create(
             model=model,
@@ -110,7 +182,7 @@ def openai_call(
                 "type": "json_schema",
                 "json_schema": {
                     "name": response_schema.__name__,
-                    "schema": response_schema.model_json_schema(),
+                    "schema": strict_schema,
                     "strict": True,
                 },
             },

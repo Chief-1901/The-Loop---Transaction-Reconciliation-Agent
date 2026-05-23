@@ -12,8 +12,21 @@ from ..llm.router import LLMRouter
 from ..tools.registry import ToolRegistry
 
 
+_FIXTURE_CSV = Path(__file__).parent.parent / "data" / "fixtures" / "tracking_db.csv"
+
+_DEFAULT_TASK = (
+    "Reconcile GrabOn deal-redemption transactions. "
+    f"CSV file: {_FIXTURE_CSV.resolve()}. "
+    "For fetch_api use endpoint=payu_settlements. "
+    "Steps: load_csv (use the CSV file path above), fetch_api (endpoint=payu_settlements), "
+    "normalize_timezone, match_records, "
+    "classify_discrepancy, propose_correction (loop per discrepancy), "
+    "apply_correction (loop per proposal), verify_reconciliation."
+)
+
+
 def add_demo_args(p: argparse.ArgumentParser) -> None:
-    p.add_argument("--task", default="Reconcile CSV vs PayU API.")
+    p.add_argument("--task", default=_DEFAULT_TASK)
     p.add_argument("--budget-tokens", type=int, default=100_000)
     p.add_argument("--budget-time", type=float, default=600.0)
     p.add_argument("--budget-calls", type=int, default=60)

@@ -31,11 +31,13 @@ class Plan:
 
     PROMPT_PATH = Path(__file__).parent / "prompts" / "plan_system.txt"
 
-    def __init__(self, router: Any, tool_registry: Any, logger: Any = None):
+    def __init__(self, router: Any, tool_registry: Any, logger: Any = None,
+                 shadow: Any | None = None):
         self._router = router
         self._registry = tool_registry
         self._system = self.PROMPT_PATH.read_text(encoding="utf-8")
         self._logger = logger
+        self._shadow = shadow
 
     def run(self, state: AgentState) -> tuple[PlanOutput, LLMCallRecord]:
         schemas = self._registry.schemas_for_llm()
@@ -52,6 +54,12 @@ class Plan:
                 "4. For fetch_api: tool_args = {\"endpoint\": \"payu_settlements\"}\n"
                 "Emit the next action."},
         ]
+        # If shadow is enabled, route through ShadowRunner (parallel primary + secondary)
+        if self._shadow is not None and self._shadow.enabled:
+            out, calls = self._shadow.plan_call(messages, PlanOutput, step=state.step)
+            # Plan.run's contract is to return (PlanOutput, LLMCallRecord) — return the primary's record
+            out = self._repair_args(out, state)
+            return out, calls[0]
         out, call = self._router.call(
             "plan", messages, PlanOutput, step=state.step, phase=Phase.PLAN
         )

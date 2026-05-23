@@ -11,6 +11,7 @@ from .phases import Phase, Plan, Decide, Act, Observe
 from .state import AgentState, DecideOutput, LLMCallRecord
 from ..recovery import RecoveryLayer
 from ..observability.dashboard import Dashboard
+from ..llm.shadow import ShadowRunner
 
 
 class ReconciliationReport(BaseModel):
@@ -39,6 +40,7 @@ class AgentLoop:
         run_dir: Path | None = None,
         max_iterations: int = 30,    # hard ceiling on top of budget
         enable_dashboard: bool = True,
+        shadow_enabled: bool = False,
     ):
         self.state = AgentState(
             run_id=datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ"),
@@ -52,12 +54,17 @@ class AgentLoop:
         self.run_dir = run_dir or Path(f"reports/run_{self.state.run_id}")
         self.run_dir.mkdir(parents=True, exist_ok=True)
         self.max_iterations = max_iterations
-        self.plan_phase = Plan(self.router, self.tools, self.logger)
+        self.dashboard = Dashboard(enabled=enable_dashboard)
+        self.shadow = ShadowRunner(
+            router=self.router,
+            enabled=shadow_enabled,
+            log_path=self.run_dir / "shadow.jsonl",
+        )
+        self.plan_phase = Plan(self.router, self.tools, self.logger, shadow=self.shadow)
         self.decide_phase = Decide(self.router, self.logger)
         self.act_phase = Act(self.tools, self.logger)
         self.observe_phase = Observe(self.logger)
         self.recovery = recovery or RecoveryLayer(logger=logger)
-        self.dashboard = Dashboard(enabled=enable_dashboard)
         # Inject the router into LLM-backed tools (classify_discrepancy, propose_correction)
         from ..tools.registry import ToolRegistry
         if hasattr(self.tools, "bind_router"):

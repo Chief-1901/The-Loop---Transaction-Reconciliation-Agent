@@ -1,0 +1,64 @@
+# .github/workflows/eval.yml
+name: eval
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Run eval suite in replay mode (no API keys needed)
+        env:
+          LLM_MODE: replay
+        run: python -m evals.runner --output-json reports/ci_results.json
+
+      - name: Compare against baseline
+        run: |
+          python -m evals.compare_baseline \
+            --current reports/ci_results.json \
+            --baseline evals/baselines/main.json \
+            --max-regression 0.0
+
+      - name: Upload eval report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-report
+          path: reports/
+
+      - name: Comment on PR with eval summary
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: >-
+            const fs = require('fs');
+            const r = JSON.parse(fs.readFileSync('reports/ci_results.json'));
+            const failures = r.summary.failures;
+            const passRate = (r.summary.pass_rate * 100).toFixed(1);
+            const passed = r.summary.passed;
+            const total = r.summary.total;
+            let body = `## Eval Results\n\n**Pass rate:** ${passRate}% (${passed}/${total})\n\n`;
+            body += failures.length === 0
+              ? 'All scenarios passed.'
+              : 'Failures:\n' + failures.map(f => `- **${f.name}**: ${f.reason}`).join('\n');
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body,
+            });

@@ -160,6 +160,7 @@ class AgentLoop:
             if not self.state.is_terminal():
                 self._halt(f"max iterations {self.max_iterations} reached")
 
+            self._write_report_json()
             return self._build_report()
 
     def _write_partial_report(self, breach_message: str) -> None:
@@ -211,6 +212,35 @@ class AgentLoop:
         )
         self.state.apply(decision)
         self.state.snapshot_to_disk(self.run_dir)
+
+    def _write_report_json(self) -> None:
+        from collections import Counter
+        kinds = Counter(d.kind for d in self.state.discrepancies)
+        total_cost = (sum(c.cost_inr for c in self.state.llm_calls)
+                      + sum(c.cost_inr for c in self.state.tool_calls))
+        # Status reclassification
+        status = "halted"
+        if self.state.halt_reason:
+            if "complete" in self.state.halt_reason or "reconciliation" in self.state.halt_reason.lower():
+                status = "completed"
+            elif "degrade" in self.state.halt_reason:
+                status = "degraded"
+            elif "budget breach" in self.state.halt_reason:
+                status = "halted"
+        payload = {
+            "status": status,
+            "halt_reason": self.state.halt_reason,
+            "findings_by_kind": dict(kinds),
+            "telemetry": {
+                "steps": self.state.step,
+                "tool_calls": len(self.state.tool_calls),
+                "llm_calls": len(self.state.llm_calls),
+                "total_cost_inr": round(total_cost, 4),
+            },
+            "corrections_applied": self.state.corrections_applied,
+        }
+        import json
+        (self.run_dir / "report.json").write_text(json.dumps(payload, indent=2))
 
     def _build_report(self) -> ReconciliationReport:
         total_cost = sum(c.cost_inr for c in self.state.llm_calls) \

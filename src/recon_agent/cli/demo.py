@@ -1,9 +1,14 @@
 from __future__ import annotations
 import argparse
+import os
 from pathlib import Path
+
+from dotenv import load_dotenv
 
 from ..agent.loop import AgentLoop
 from ..agent.budget import Budget
+from ..llm.cassettes import CassetteLayer
+from ..llm.router import LLMRouter
 from ..tools.registry import ToolRegistry
 
 
@@ -14,10 +19,16 @@ def add_demo_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--budget-calls", type=int, default=60)
     p.add_argument("--budget-fails", type=int, default=5)
     p.add_argument("--budget-cost", type=float, default=50.0)
+    p.add_argument("--llm-mode", choices=["live", "record", "replay"], default=None)
     p.add_argument("--run-dir", type=Path, default=None)
 
 
 def run_demo(args: argparse.Namespace) -> int:
+    load_dotenv()
+    mode = args.llm_mode or os.environ.get("LLM_MODE", "live")
+    cassette = CassetteLayer(mode=mode, path=Path("reports/_demo_cassette.jsonl"))
+    router = LLMRouter(cassette)
+
     ToolRegistry.discover()
     budget = Budget(
         max_tokens=args.budget_tokens,
@@ -30,11 +41,14 @@ def run_demo(args: argparse.Namespace) -> int:
         task=args.task,
         tools=ToolRegistry,
         budget=budget,
+        llm_router=router,
         run_dir=args.run_dir,
     )
     report = loop.run()
     print(f"Status: {report.status}")
     print(f"Halt reason: {report.halt_reason}")
     print(f"Steps: {report.telemetry['steps']}")
+    print(f"LLM calls: {report.telemetry['llm_calls']}")
+    print(f"Total cost: INR {report.telemetry['total_cost_inr']}")
     print(f"Run dir: {loop.run_dir}")
     return 0 if report.status in ("completed", "halted") else 2

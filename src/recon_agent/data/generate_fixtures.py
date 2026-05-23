@@ -100,3 +100,117 @@ def _write_json(path: Path, records: list[dict]) -> None:
         "records": records,
     }
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
+DEFECT_VARIANTS: dict[str, dict[str, float]] = {
+    "happy_clean":      {},
+    "tz_only":          {"timezone_shift": 0.05},
+    "encoding_only":    {"encoding_corruption": 0.01},
+    "duplicate_only":   {"duplicate": 0.02},
+    "value_only":       {"value_mismatch": 0.03},
+    "default": {
+        "value_mismatch":     0.03,
+        "timezone_shift":     0.05,
+        "duplicate":          0.02,
+        "missing_in_api":     0.02,
+        "missing_in_csv":     0.005,
+        "encoding_corruption": 0.01,
+    },
+    "default_disabled_api": {  # same as default; the eval scenario disables fetch_api at CLI
+        "value_mismatch":     0.03,
+        "timezone_shift":     0.05,
+        "duplicate":          0.02,
+        "missing_in_api":     0.02,
+        "missing_in_csv":     0.005,
+        "encoding_corruption": 0.01,
+    },
+    "default_latin1_csv": {     # like default + CSV written in latin-1 (handled in write step)
+        "value_mismatch":     0.03,
+        "timezone_shift":     0.05,
+        "duplicate":          0.02,
+        "missing_in_api":     0.02,
+        "encoding_corruption": 0.01,
+    },
+    "corrupted_source": {},     # CSV will be replaced with binary garbage
+    "irreconcilable":   {},     # 0 shared txn_ids — handled in injection
+}
+
+
+def _inject_value_mismatch(csv_row: dict, api_record: dict, rng: random.Random) -> InjectedDefect:
+    # round api.gross_amount to nearest ₹10 away from csv's actual
+    orig = api_record["gross_amount"]
+    rounded = round(orig / 10) * 10 + rng.choice([-0.99, 0.99])
+    api_record["gross_amount"] = round(rounded, 2)
+    return InjectedDefect(
+        txn_id=csv_row["txn_id"], kind="value_mismatch",
+        csv={"order_value_inr": orig}, api={"gross_amount": api_record["gross_amount"]},
+        expected_correction={
+            "field": "gross_amount", "old": api_record["gross_amount"], "new": orig,
+            "reason_contains": "rounding",
+        }
+    )
+
+
+def _inject_timezone_shift(csv_row: dict, api_record: dict, _rng) -> InjectedDefect:
+    # API's settled_at claims +00:00 but the value is actually IST hours
+    redemption_ts_ist = datetime.fromisoformat(csv_row["redemption_ts"])
+    # write the IST clock time but with UTC offset
+    fake_settled = redemption_ts_ist.replace(tzinfo=UTC)
+    api_record["settled_at"] = fake_settled.isoformat()
+    correct_settled = redemption_ts_ist.astimezone(UTC)
+    return InjectedDefect(
+        txn_id=csv_row["txn_id"], kind="timezone_shift",
+        csv={"redemption_ts": csv_row["redemption_ts"]},
+        api={"settled_at": api_record["settled_at"]},
+        expected_correction={
+            "field": "settled_at", "old": api_record["settled_at"],
+            "new": correct_settled.isoformat(), "reason_contains": "ist_stored_as_utc",
+        }
+    )
+
+
+def _inject_duplicate(csv_row: dict, api_record: dict, rng: random.Random,
+                      csv_rows: list[dict]) -> InjectedDefect:
+    # Append another CSV row with same txn_id, slightly different redemption_ts
+    dup = dict(csv_row)
+    redemption_ts_ist = datetime.fromisoformat(csv_row["redemption_ts"])
+    dup["redemption_ts"] = (redemption_ts_ist + timedelta(seconds=rng.randint(5, 60))).isoformat()
+    csv_rows.append(dup)
+    return InjectedDefect(
+        txn_id=csv_row["txn_id"], kind="duplicate",
+        csv={"original_ts": csv_row["redemption_ts"], "dup_ts": dup["redemption_ts"]},
+        expected_correction={"field": "_status", "old": "duplicate", "new": "merged",
+                             "reason_contains": "dup"}
+    )
+
+
+def _inject_missing_in_api(csv_row: dict, api_record: dict, _rng) -> InjectedDefect:
+    # signal removal — caller filters this record out of api_records
+    return InjectedDefect(
+        txn_id=csv_row["txn_id"], kind="missing_in_api",
+        csv={"txn_id": csv_row["txn_id"]},
+        expected_correction={"field": "_existence", "old": "absent_in_api",
+                             "new": "ledger_recorded", "reason_contains": "settlement_gap"}
+    )
+
+
+def _inject_missing_in_csv(csv_row: dict, api_record: dict, _rng) -> InjectedDefect:
+    return InjectedDefect(
+        txn_id=csv_row["txn_id"], kind="missing_in_csv",
+        api={"reference_id": csv_row["txn_id"]},
+        expected_correction={"field": "_existence", "old": "absent_in_csv",
+                             "new": "csv_backfill", "reason_contains": "tracking_miss"}
+    )
+
+
+def _inject_encoding_corruption(csv_row: dict, _api, _rng) -> InjectedDefect:
+    orig = csv_row["merchant"]
+    # double-encode: latin-1 bytes of "'" misread as UTF-8
+    corrupted = orig.replace("a", "â\x80\x99")
+    csv_row["merchant"] = corrupted
+    return InjectedDefect(
+        txn_id=csv_row["txn_id"], kind="encoding_corruption",
+        csv={"merchant": corrupted},
+        expected_correction={"field": "merchant", "old": corrupted, "new": orig,
+                             "reason_contains": "encoding"}
+    )

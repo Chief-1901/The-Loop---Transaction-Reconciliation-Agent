@@ -10,6 +10,7 @@ from .budget import Budget, check as budget_check
 from .phases import Phase, Plan, Decide, Act, Observe
 from .state import AgentState, DecideOutput, LLMCallRecord
 from ..recovery import RecoveryLayer
+from ..observability.dashboard import Dashboard
 
 
 class ReconciliationReport(BaseModel):
@@ -37,6 +38,7 @@ class AgentLoop:
         logger: Any = None,
         run_dir: Path | None = None,
         max_iterations: int = 30,    # hard ceiling on top of budget
+        enable_dashboard: bool = True,
     ):
         self.state = AgentState(
             run_id=datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ"),
@@ -55,105 +57,110 @@ class AgentLoop:
         self.act_phase = Act(self.tools, self.logger)
         self.observe_phase = Observe(self.logger)
         self.recovery = recovery or RecoveryLayer(logger=logger)
+        self.dashboard = Dashboard(enabled=enable_dashboard)
         # Inject the router into LLM-backed tools (classify_discrepancy, propose_correction)
         from ..tools.registry import ToolRegistry
         if hasattr(self.tools, "bind_router"):
             self.tools.bind_router(self.router)
 
     def run(self) -> ReconciliationReport:
-        self.state.snapshot_to_disk(self.run_dir)
-        if self.logger is not None:
-            self.logger.info("loop.started", task_brief=self.state.task_brief[:120])
-        iteration = 0
-
-        while not self.state.is_terminal() and iteration < self.max_iterations:
-            iteration += 1
-
-            # Budget gate
-            breach = budget_check(self.budget, self.state)
-            if breach:
-                self._halt(f"budget breach: {breach.dim} ({breach.message})")
-                break
-
-            # PLAN
-            try:
-                plan_out, plan_call = self.plan_phase.run(self.state)
-                self.state.llm_calls.append(plan_call)
-            except Exception as e:
-                self._halt(f"plan exception: {type(e).__name__}: {e}")
-                break
-
+        with self.dashboard:
+            self.state.snapshot_to_disk(self.run_dir)
             if self.logger is not None:
-                self.logger.info("phase.plan", step=self.state.step,
-                                 tool=plan_out.intended_tool, reasoning=plan_out.reasoning[:200])
+                self.logger.info("loop.started", task_brief=self.state.task_brief[:120])
+            self.dashboard.update(self.state, self.budget)
+            iteration = 0
 
-            # ACT — call the real tool
-            act_out = self.act_phase.run(plan_out, self.state)
-            self.state.tool_calls.append(act_out.raw_record)
+            while not self.state.is_terminal() and iteration < self.max_iterations:
+                iteration += 1
 
-            if self.logger is not None:
-                self.logger.info("phase.act", step=self.state.step,
-                                 tool=act_out.tool_name,
-                                 outcome="ok" if not act_out.error else "error",
-                                 latency_ms=act_out.raw_record.latency_ms,
-                                 error_code=act_out.error.code if act_out.error else None)
+                # Budget gate
+                breach = budget_check(self.budget, self.state)
+                if breach:
+                    self._halt(f"budget breach: {breach.dim} ({breach.message})")
+                    break
 
-            if act_out.error:
-                rec = self.recovery.handle(act_out.error, self.state, act_out, self.tools)
+                # PLAN
+                try:
+                    plan_out, plan_call = self.plan_phase.run(self.state)
+                    self.state.llm_calls.append(plan_call)
+                except Exception as e:
+                    self._halt(f"plan exception: {type(e).__name__}: {e}")
+                    break
 
                 if self.logger is not None:
-                    self.logger.info("recovery.dispatched", kind=rec.kind, reason=rec.reason,
-                                     hint=getattr(rec, "hint", ""))
+                    self.logger.info("phase.plan", step=self.state.step,
+                                     tool=plan_out.intended_tool, reasoning=plan_out.reasoning[:200])
 
-                if rec.kind == "retry":
-                    act_out = rec.new_act_output
-                    self.state.tool_calls.append(act_out.raw_record)
-                    if act_out.error:
-                        # retry also failed; treat as a new failure cycle
+                # ACT — call the real tool
+                act_out = self.act_phase.run(plan_out, self.state)
+                self.state.tool_calls.append(act_out.raw_record)
+
+                if self.logger is not None:
+                    self.logger.info("phase.act", step=self.state.step,
+                                     tool=act_out.tool_name,
+                                     outcome="ok" if not act_out.error else "error",
+                                     latency_ms=act_out.raw_record.latency_ms,
+                                     error_code=act_out.error.code if act_out.error else None)
+
+                if act_out.error:
+                    rec = self.recovery.handle(act_out.error, self.state, act_out, self.tools)
+
+                    if self.logger is not None:
+                        self.logger.info("recovery.dispatched", kind=rec.kind, reason=rec.reason,
+                                         hint=getattr(rec, "hint", ""))
+
+                    if rec.kind == "retry":
+                        act_out = rec.new_act_output
+                        self.state.tool_calls.append(act_out.raw_record)
+                        if act_out.error:
+                            # retry also failed; treat as a new failure cycle
+                            self.state.consecutive_failures += 1
+                            observation = f"FAILED after retry {act_out.tool_name}: {act_out.error.code}"
+                        else:
+                            self.state.consecutive_failures = 0
+                            observation = self.observe_phase.run(act_out, self.state)
+                    elif rec.kind == "replan":
                         self.state.consecutive_failures += 1
-                        observation = f"FAILED after retry {act_out.tool_name}: {act_out.error.code}"
-                    else:
-                        self.state.consecutive_failures = 0
-                        observation = self.observe_phase.run(act_out, self.state)
-                elif rec.kind == "replan":
-                    self.state.consecutive_failures += 1
-                    # Force a Decide that returns to PLAN with the hint baked into reasoning
-                    forced = DecideOutput(
-                        next_phase=Phase.PLAN,
-                        reasoning=f"recovery=replan: {rec.reason}. hint={rec.hint}",
-                        recovery_invoked=True,
-                        llm_call=_empty_llm_call(Phase.DECIDE),
-                    )
-                    self.state.apply(forced)
-                    self.state.snapshot_to_disk(self.run_dir)
-                    continue
-                else:  # degrade
-                    self._halt(f"graceful degrade: {rec.reason}")
+                        # Force a Decide that returns to PLAN with the hint baked into reasoning
+                        forced = DecideOutput(
+                            next_phase=Phase.PLAN,
+                            reasoning=f"recovery=replan: {rec.reason}. hint={rec.hint}",
+                            recovery_invoked=True,
+                            llm_call=_empty_llm_call(Phase.DECIDE),
+                        )
+                        self.state.apply(forced)
+                        self.state.snapshot_to_disk(self.run_dir)
+                        self.dashboard.update(self.state, self.budget)
+                        continue
+                    else:  # degrade
+                        self._halt(f"graceful degrade: {rec.reason}")
+                        break
+                else:
+                    self.state.consecutive_failures = 0
+                    observation = self.observe_phase.run(act_out, self.state)
+
+                # DECIDE
+                try:
+                    dec_out, dec_call = self.decide_phase.run(observation, self.state)
+                    self.state.llm_calls.append(dec_call)
+                except Exception as e:
+                    self._halt(f"decide exception: {type(e).__name__}: {e}")
                     break
-            else:
-                self.state.consecutive_failures = 0
-                observation = self.observe_phase.run(act_out, self.state)
 
-            # DECIDE
-            try:
-                dec_out, dec_call = self.decide_phase.run(observation, self.state)
-                self.state.llm_calls.append(dec_call)
-            except Exception as e:
-                self._halt(f"decide exception: {type(e).__name__}: {e}")
-                break
+                if self.logger is not None:
+                    self.logger.info("phase.decide", step=self.state.step,
+                                     next_phase=str(dec_out.next_phase),
+                                     reasoning=dec_out.reasoning[:200])
 
-            if self.logger is not None:
-                self.logger.info("phase.decide", step=self.state.step,
-                                 next_phase=str(dec_out.next_phase),
-                                 reasoning=dec_out.reasoning[:200])
+                self.state.apply(dec_out)
+                self.state.snapshot_to_disk(self.run_dir)
+                self.dashboard.update(self.state, self.budget)
 
-            self.state.apply(dec_out)
-            self.state.snapshot_to_disk(self.run_dir)
+            if not self.state.is_terminal():
+                self._halt(f"max iterations {self.max_iterations} reached")
 
-        if not self.state.is_terminal():
-            self._halt(f"max iterations {self.max_iterations} reached")
-
-        return self._build_report()
+            return self._build_report()
 
     def _write_partial_report(self, breach_message: str) -> None:
         path = self.run_dir / "PARTIAL_REPORT.md"

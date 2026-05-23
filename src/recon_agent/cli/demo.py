@@ -39,6 +39,7 @@ def add_demo_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--run-dir", type=Path, default=None)
     p.add_argument("-v", "--verbose", action="store_true")
     p.add_argument("-q", "--quiet", action="store_true")
+    p.add_argument("--no-dashboard", action="store_true")
 
 
 def run_demo(args: argparse.Namespace) -> int:
@@ -73,6 +74,7 @@ def run_demo(args: argparse.Namespace) -> int:
         recovery=RecoveryLayer(),
         logger=logger,
         run_dir=run_dir,
+        enable_dashboard=not args.no_dashboard,
     )
     report = loop.run()
     print(f"Status: {report.status}")

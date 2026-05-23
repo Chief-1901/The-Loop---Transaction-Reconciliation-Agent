@@ -1,0 +1,26 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+build/
+dist/
+
+# Runtime output — keep .gitkeep
+reports/*
+!reports/.gitkeep
+
+# Generated fixtures — keep ground truth, drop CSV/JSON
+src/recon_agent/data/fixtures/*.csv
+src/recon_agent/data/fixtures/*.json
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Claude Code session state
+.claude/

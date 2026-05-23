@@ -214,3 +214,123 @@ def _inject_encoding_corruption(csv_row: dict, _api, _rng) -> InjectedDefect:
         expected_correction={"field": "merchant", "old": corrupted, "new": orig,
                              "reason_contains": "encoding"}
     )
+
+
+def generate_fixtures(
+    seed: int = 42,
+    n_txns: int = 500,
+    variant: str = "default",
+    out_dir: Path = Path("src/recon_agent/data/fixtures"),
+    ground_truth_dir: Path = Path("src/recon_agent/data"),
+) -> GroundTruth:
+    rng = random.Random(seed)
+    spec = DEFECT_VARIANTS[variant]
+
+    base_date = datetime(2026, 4, 1, tzinfo=IST)
+    csv_rows: list[dict] = []
+    api_records: list[dict] = []
+
+    for i in range(n_txns):
+        csv_row, api_record = _make_clean(rng, i, base_date)
+        csv_rows.append(csv_row)
+        api_records.append(api_record)
+
+    # Pass 2: inject defects
+    injected: list[InjectedDefect] = []
+    txn_to_csv_idx = {row["txn_id"]: i for i, row in enumerate(csv_rows)}
+    txn_to_api_idx = {rec["reference_id"]: i for i, rec in enumerate(api_records)}
+
+    for kind, rate in spec.items():
+        n_inject = max(1, int(n_txns * rate)) if rate > 0 else 0
+        # pick distinct txn_ids that haven't been hit yet
+        candidates = [r["txn_id"] for r in csv_rows
+                      if r is not None and r["txn_id"] not in {d.txn_id for d in injected}]
+        chosen = rng.sample(candidates, min(n_inject, len(candidates)))
+
+        for txn_id in chosen:
+            csv_idx = txn_to_csv_idx[txn_id]
+            api_idx = txn_to_api_idx.get(txn_id)
+            csv_row = csv_rows[csv_idx]
+            api_record = api_records[api_idx] if api_idx is not None else None
+
+            if kind == "value_mismatch" and api_record:
+                injected.append(_inject_value_mismatch(csv_row, api_record, rng))
+            elif kind == "timezone_shift" and api_record:
+                injected.append(_inject_timezone_shift(csv_row, api_record, rng))
+            elif kind == "duplicate":
+                injected.append(_inject_duplicate(csv_row, api_record or {}, rng, csv_rows))
+            elif kind == "missing_in_api" and api_record:
+                injected.append(_inject_missing_in_api(csv_row, api_record, rng))
+                api_records[api_idx] = None     # mark for removal
+            elif kind == "missing_in_csv":
+                # remove from CSV, keep in API
+                injected.append(_inject_missing_in_csv(csv_row, api_record or {}, rng))
+                csv_rows[csv_idx] = None
+            elif kind == "encoding_corruption":
+                injected.append(_inject_encoding_corruption(csv_row, api_record, rng))
+
+    # Drop marked-None entries
+    csv_rows = [r for r in csv_rows if r is not None]
+    api_records = [r for r in api_records if r is not None]
+
+    # Special variants
+    if variant == "corrupted_source":
+        csv_path = out_dir / "tracking_db.csv"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        csv_path.write_bytes(b"\x00\x01\x02\xff\xfe\xfd" * 500)
+        _write_json(out_dir / "payu_settlements.json", api_records)
+    elif variant == "irreconcilable":
+        # rewrite all api.reference_ids so 0 match csv.txn_ids
+        for rec in api_records:
+            rec["reference_id"] = "DROPPED-" + rec["reference_id"]
+        _write_csv(out_dir / "tracking_db.csv", csv_rows)
+        _write_json(out_dir / "payu_settlements.json", api_records)
+    elif variant == "default_latin1_csv":
+        _write_csv(out_dir / "tracking_db.csv", csv_rows, encoding="latin-1")
+        _write_json(out_dir / "payu_settlements.json", api_records)
+    else:
+        _write_csv(out_dir / "tracking_db.csv", csv_rows)
+        _write_json(out_dir / "payu_settlements.json", api_records)
+
+    gt = GroundTruth(
+        fixture_seed=seed,
+        variant=variant,
+        total_txns=n_txns,
+        generated_at=datetime.now(timezone.utc).isoformat(),
+        expected_summary=_count_by_kind(injected),
+        injected=[
+            {
+                "txn_id": d.txn_id, "kind": d.kind, "csv": d.csv,
+                "api": d.api, "expected_correction": d.expected_correction,
+            }
+            for d in injected
+        ],
+    )
+    ground_truth_dir.mkdir(parents=True, exist_ok=True)
+    gt_path = ground_truth_dir / f"ground_truth_{variant}.json"
+    gt_path.write_text(gt.model_dump_json(indent=2), encoding="utf-8")
+    return gt
+
+
+def _count_by_kind(injected: list[InjectedDefect]) -> dict[str, int]:
+    out: dict[str, int] = {}
+    for d in injected:
+        out[d.kind] = out.get(d.kind, 0) + 1
+    out["_total"] = len(injected)
+    return out
+
+
+def main() -> None:
+    p = argparse.ArgumentParser()
+    p.add_argument("--variant", default="default", choices=list(DEFECT_VARIANTS.keys()))
+    p.add_argument("--seed", type=int, default=42)
+    p.add_argument("--n", type=int, default=500)
+    p.add_argument("--out-dir", type=Path, default=Path("src/recon_agent/data/fixtures"))
+    args = p.parse_args()
+    gt = generate_fixtures(seed=args.seed, n_txns=args.n,
+                           variant=args.variant, out_dir=args.out_dir)
+    print(f"variant={gt.variant} txns={gt.total_txns} injected={gt.expected_summary}")
+
+
+if __name__ == "__main__":
+    main()

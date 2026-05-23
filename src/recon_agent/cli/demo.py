@@ -1,6 +1,7 @@
 from __future__ import annotations
 import argparse
 import os
+from datetime import datetime, timezone
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -9,6 +10,7 @@ from ..agent.loop import AgentLoop
 from ..agent.budget import Budget
 from ..llm.cassettes import CassetteLayer
 from ..llm.router import LLMRouter
+from ..observability.logger import configure_logging
 from ..recovery import RecoveryLayer
 from ..tools.registry import ToolRegistry
 
@@ -35,6 +37,8 @@ def add_demo_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--budget-cost", type=float, default=50.0)
     p.add_argument("--llm-mode", choices=["live", "record", "replay"], default=None)
     p.add_argument("--run-dir", type=Path, default=None)
+    p.add_argument("-v", "--verbose", action="store_true")
+    p.add_argument("-q", "--quiet", action="store_true")
 
 
 def run_demo(args: argparse.Namespace) -> int:
@@ -51,13 +55,24 @@ def run_demo(args: argparse.Namespace) -> int:
         max_consecutive_failures=args.budget_fails,
         max_cost_inr=args.budget_cost,
     )
+
+    run_dir = args.run_dir or Path(
+        f"reports/run_{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}"
+    )
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    level = "DEBUG" if args.verbose else ("ERROR" if args.quiet else "INFO")
+    logger = configure_logging(run_dir, level=level)
+    logger.info("demo.started", task=args.task)
+
     loop = AgentLoop(
         task=args.task,
         tools=ToolRegistry,
         budget=budget,
         llm_router=router,
         recovery=RecoveryLayer(),
-        run_dir=args.run_dir,
+        logger=logger,
+        run_dir=run_dir,
     )
     report = loop.run()
     print(f"Status: {report.status}")

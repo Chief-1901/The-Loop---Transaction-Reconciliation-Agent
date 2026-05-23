@@ -62,6 +62,8 @@ class AgentLoop:
 
     def run(self) -> ReconciliationReport:
         self.state.snapshot_to_disk(self.run_dir)
+        if self.logger is not None:
+            self.logger.info("loop.started", task_brief=self.state.task_brief[:120])
         iteration = 0
 
         while not self.state.is_terminal() and iteration < self.max_iterations:
@@ -81,12 +83,27 @@ class AgentLoop:
                 self._halt(f"plan exception: {type(e).__name__}: {e}")
                 break
 
+            if self.logger is not None:
+                self.logger.info("phase.plan", step=self.state.step,
+                                 tool=plan_out.intended_tool, reasoning=plan_out.reasoning[:200])
+
             # ACT — call the real tool
             act_out = self.act_phase.run(plan_out, self.state)
             self.state.tool_calls.append(act_out.raw_record)
 
+            if self.logger is not None:
+                self.logger.info("phase.act", step=self.state.step,
+                                 tool=act_out.tool_name,
+                                 outcome="ok" if not act_out.error else "error",
+                                 latency_ms=act_out.raw_record.latency_ms,
+                                 error_code=act_out.error.code if act_out.error else None)
+
             if act_out.error:
                 rec = self.recovery.handle(act_out.error, self.state, act_out, self.tools)
+
+                if self.logger is not None:
+                    self.logger.info("recovery.dispatched", kind=rec.kind, reason=rec.reason,
+                                     hint=getattr(rec, "hint", ""))
 
                 if rec.kind == "retry":
                     act_out = rec.new_act_output
@@ -124,6 +141,11 @@ class AgentLoop:
             except Exception as e:
                 self._halt(f"decide exception: {type(e).__name__}: {e}")
                 break
+
+            if self.logger is not None:
+                self.logger.info("phase.decide", step=self.state.step,
+                                 next_phase=str(dec_out.next_phase),
+                                 reasoning=dec_out.reasoning[:200])
 
             self.state.apply(dec_out)
             self.state.snapshot_to_disk(self.run_dir)
@@ -171,6 +193,8 @@ class AgentLoop:
         path.write_text("\n".join(lines), encoding="utf-8")
 
     def _halt(self, reason: str) -> None:
+        if self.logger is not None:
+            self.logger.info("loop.halted", reason=reason)
         if reason.startswith("budget breach"):
             self._write_partial_report(reason)
         decision = DecideOutput(

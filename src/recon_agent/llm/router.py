@@ -10,7 +10,7 @@ from ..agent.phases import Phase
 from ..agent.state import LLMCallRecord
 from .cassettes import CassetteLayer
 from .pricing import cost_inr
-from .providers import RawLLMResponse, gemini_call, openai_call, LLMError
+from .providers import RawLLMResponse, gemini_call, openai_call, openrouter_call, LLMError
 
 
 @dataclass(frozen=True)
@@ -26,13 +26,16 @@ PLAN_PROVIDER_OVERRIDE = os.environ.get("PLAN_PROVIDER")
 # Allow overriding Gemini model via env var (e.g. to test against gemini-2.5-flash)
 _GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash-lite")
 
+# Default OpenRouter free model — override via OPENROUTER_MODEL env var if needed
+_OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "openai/gpt-oss-120b:free")
+
 ROUTING_TABLE: dict[str, RouteSpec] = {
-    "plan":        RouteSpec("gemini", _GEMINI_MODEL, "gemini-2.5-flash-lite: cheapest tier in the Flash family. Generous free-tier quota for high-volume agent workloads. Structured-output reliability is sufficient for ReAct's constrained single-step planning."),
-    "decide":      RouteSpec("gemini", _GEMINI_MODEL, "Meta-cognition gated by binary HALT|PLAN schema. flash-lite is sufficient; in-family with plan amortizes the Gemini client."),
-    "classify":    RouteSpec("openai", "gpt-4o-mini",  "Cheap structured classification. OpenAI's json_schema strict mode is the most reliable for high-volume enum tagging."),
-    "summary":     RouteSpec("gemini", _GEMINI_MODEL, "One call at end of run, natural-language only. In-family with plan/decide."),
-    "shadow_plan": RouteSpec("openai", "gpt-4o",       "Capable-tier comparison vs Gemini flash-lite on Plan. Only invoked when --shadow flag is set."),
-    "propose":     RouteSpec("gemini", _GEMINI_MODEL, "Per-correction LLM call. flash-lite handles the per-discrepancy proposal schema; in-family with plan/decide."),
+    "plan":        RouteSpec("openrouter", _OPENROUTER_MODEL, "gpt-oss-120b via OpenRouter free tier. Native structured-output + function-calling support. 200 req/day free quota sufficient for cassette + demo workload."),
+    "decide":      RouteSpec("openrouter", _OPENROUTER_MODEL, "Binary HALT|PLAN meta-decision; same model as plan amortizes the OpenRouter client."),
+    "classify":    RouteSpec("openai", "gpt-4o-mini",  "Cheap structured classification via OpenAI's strict json_schema mode. High-volume enum tagging where reliable schema enforcement matters."),
+    "summary":     RouteSpec("openrouter", _OPENROUTER_MODEL, "One natural-language summary call at end. In-family with plan/decide."),
+    "shadow_plan": RouteSpec("openai", "gpt-4o",       "Capable-tier shadow comparison vs gpt-oss-120b on Plan. Only invoked when --shadow set."),
+    "propose":     RouteSpec("openrouter", _OPENROUTER_MODEL, "Per-correction LLM call; in-family with plan/decide; free tier handles per-discrepancy proposals."),
 }
 
 
@@ -73,6 +76,8 @@ class LLMRouter:
             raw = gemini_call(route.model, messages, response_schema, timeout_s)
         elif route.provider == "openai":
             raw = openai_call(route.model, messages, response_schema, timeout_s)
+        elif route.provider == "openrouter":
+            raw = openrouter_call(route.model, messages, response_schema, timeout_s)
         else:
             raise ValueError(f"unknown provider {route.provider}")
 

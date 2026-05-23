@@ -6,6 +6,38 @@ from pydantic import BaseModel
 from recon_agent.llm.providers import gemini_call, openai_call, LLMError, RawLLMResponse
 
 
+# ---------------------------------------------------------------------------
+# sanitize_schema_for_gemini — unit tests
+# ---------------------------------------------------------------------------
+
+def test_sanitize_schema_strips_additional_properties():
+    from recon_agent.llm.providers import sanitize_schema_for_gemini
+    schema = {
+        "type": "object",
+        "additionalProperties": False,
+        "title": "Foo",
+        "properties": {
+            "x": {"type": "string", "title": "X-field"},
+            "y": {"type": "object", "additionalProperties": False,
+                  "properties": {"nested": {"type": "integer"}}},
+        },
+    }
+    cleaned = sanitize_schema_for_gemini(schema)
+    assert "additionalProperties" not in cleaned
+    assert "title" not in cleaned
+    assert "additionalProperties" not in cleaned["properties"]["y"]
+    assert "title" not in cleaned["properties"]["x"]
+    assert cleaned["properties"]["y"]["properties"]["nested"]["type"] == "integer"
+
+
+def test_sanitize_schema_preserves_other_keys():
+    from recon_agent.llm.providers import sanitize_schema_for_gemini
+    schema = {"type": "object", "properties": {"name": {"type": "string"}},
+              "required": ["name"]}
+    cleaned = sanitize_schema_for_gemini(schema)
+    assert cleaned == schema   # nothing to strip
+
+
 class _Schema(BaseModel):
     x: int
 

@@ -6,6 +6,24 @@ from typing import Any
 from pydantic import BaseModel
 
 
+def sanitize_schema_for_gemini(schema: dict | list | object) -> dict | list | object:
+    """Recursively remove keys that Gemini Developer API rejects from a JSON schema.
+
+    Gemini Developer API does not support: additionalProperties, title in nested
+    positions, $defs/$ref. We strip these so Pydantic-derived schemas are accepted.
+    """
+    if isinstance(schema, dict):
+        cleaned = {}
+        for k, v in schema.items():
+            if k in ("additionalProperties", "title"):
+                continue
+            cleaned[k] = sanitize_schema_for_gemini(v)
+        return cleaned
+    if isinstance(schema, list):
+        return [sanitize_schema_for_gemini(item) for item in schema]
+    return schema
+
+
 class RawLLMResponse(BaseModel):
     text: str
     tokens_in: int
@@ -41,13 +59,15 @@ def gemini_call(
         for m in messages
     )
 
+    schema_dict = sanitize_schema_for_gemini(response_schema.model_json_schema())
+
     try:
         resp = client.models.generate_content(
             model=model,
             contents=content,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
-                response_schema=response_schema,
+                response_schema=schema_dict,
                 max_output_tokens=2048,
                 temperature=0.2,
             ),

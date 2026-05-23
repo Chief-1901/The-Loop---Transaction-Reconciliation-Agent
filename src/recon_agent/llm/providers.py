@@ -1,4 +1,5 @@
 from __future__ import annotations
+import json
 import os
 import time
 from typing import Any
@@ -203,5 +204,59 @@ def openai_call(
         text=choice.content or "",
         tokens_in=usage.prompt_tokens,
         tokens_out=usage.completion_tokens,
+        latency_ms=latency_ms,
+    )
+
+
+def openrouter_call(
+    model: str,
+    messages: list[dict],
+    response_schema: type[BaseModel],
+    timeout_s: float = 30.0,
+) -> RawLLMResponse:
+    """Hits OpenRouter's OpenAI-compatible endpoint. Uses JSON-mode + schema hint."""
+    from openai import OpenAI, APITimeoutError, RateLimitError
+
+    client = OpenAI(
+        api_key=os.environ["OPENROUTER_API_KEY"],
+        base_url="https://openrouter.ai/api/v1",
+        timeout=timeout_s,
+    )
+    started = time.time()
+
+    # Inject the schema as a hint in the first system message (or prepend a new one)
+    schema_str = json.dumps(response_schema.model_json_schema(), indent=2)
+    schema_hint = (
+        "Respond with a single JSON object matching this schema EXACTLY. "
+        "No prose, no markdown fences. JSON only.\n\nSchema:\n" + schema_str
+    )
+    augmented = list(messages)
+    if augmented and augmented[0].get("role") == "system":
+        augmented[0] = {**augmented[0], "content": augmented[0]["content"] + "\n\n" + schema_hint}
+    else:
+        augmented.insert(0, {"role": "system", "content": schema_hint})
+
+    try:
+        resp = client.chat.completions.create(
+            model=model,
+            messages=augmented,
+            response_format={"type": "json_object"},
+            max_tokens=4096,
+            temperature=0.2,
+        )
+    except RateLimitError as e:
+        raise LLMError("LLM_RATE_LIMIT", str(e), retriable=True) from e
+    except APITimeoutError as e:
+        raise LLMError("LLM_TIMEOUT", str(e), retriable=True) from e
+    except Exception as e:
+        raise LLMError("LLM_PROVIDER_ERROR", str(e), retriable=False) from e
+
+    latency_ms = int((time.time() - started) * 1000)
+    choice = resp.choices[0].message
+    usage = resp.usage
+    return RawLLMResponse(
+        text=choice.content or "",
+        tokens_in=usage.prompt_tokens if usage else 0,
+        tokens_out=usage.completion_tokens if usage else 0,
         latency_ms=latency_ms,
     )

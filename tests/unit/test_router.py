@@ -31,7 +31,7 @@ def test_routing_table_has_all_keys():
 
 def test_routing_table_providers_are_valid():
     for key, spec in ROUTING_TABLE.items():
-        assert spec.provider in ("gemini", "openai"), f"{key}: unknown provider {spec.provider}"
+        assert spec.provider in ("gemini", "openai", "openrouter"), f"{key}: unknown provider {spec.provider}"
 
 
 def test_routing_table_models_non_empty():
@@ -39,10 +39,10 @@ def test_routing_table_models_non_empty():
         assert spec.model, f"{key}: model is empty"
 
 
-def test_plan_uses_gemini_by_default():
+def test_plan_uses_openrouter_by_default():
     spec = _route_for("plan")
-    assert spec.provider == "gemini"
-    assert "gemini" in spec.model
+    assert spec.provider == "openrouter"
+    assert "deepseek" in spec.model
 
 
 def test_classify_uses_openai_mini():
@@ -81,8 +81,8 @@ def test_plan_provider_override_does_not_affect_decide(monkeypatch):
     importlib.reload(router_mod)
     try:
         spec = router_mod._route_for("decide")
-        # decide should use gemini (from ROUTING_TABLE), not affected by PLAN_PROVIDER
-        assert spec.provider == "gemini"
+        # decide should use openrouter (from ROUTING_TABLE), not affected by PLAN_PROVIDER
+        assert spec.provider == "openrouter"
     finally:
         monkeypatch.delenv("PLAN_PROVIDER", raising=False)
         importlib.reload(router_mod)
@@ -94,8 +94,8 @@ def test_plan_provider_override_does_not_affect_propose(monkeypatch):
     importlib.reload(router_mod)
     try:
         spec = router_mod._route_for("propose")
-        # propose should use gemini (from ROUTING_TABLE), not affected by PLAN_PROVIDER
-        assert spec.provider == "gemini"
+        # propose should use openrouter (from ROUTING_TABLE), not affected by PLAN_PROVIDER
+        assert spec.provider == "openrouter"
     finally:
         monkeypatch.delenv("PLAN_PROVIDER", raising=False)
         importlib.reload(router_mod)
@@ -123,8 +123,8 @@ class _Schema(BaseModel):
 
 
 def test_router_call_replay_returns_parsed_and_record(tmp_path):
-    """Use 'summary' subtask (gemini/gemini-2.5-flash) — no env-override risk."""
-    route_summary = ROUTING_TABLE["summary"]  # gemini / gemini-2.5-flash
+    """Use 'summary' subtask (openrouter/deepseek) — no env-override risk."""
+    route_summary = ROUTING_TABLE["summary"]  # openrouter / deepseek-chat:free
     path = tmp_path / "cassette.jsonl"
     # Seed cassette
     rec_layer = CassetteLayer(mode="record", path=path)
@@ -161,14 +161,14 @@ def test_router_call_replay_raises_cassette_miss(tmp_path):
 
 def test_router_call_live_does_not_write_to_cassette(tmp_path):
     """In live mode, put() is never called even if the provider call succeeds.
-    Uses 'summary' (gemini) so gemini_call patch works cleanly."""
+    Uses 'summary' (openrouter) so openrouter_call patch works cleanly."""
     path = tmp_path / "live.jsonl"
     live_layer = CassetteLayer(mode="live", path=path)
     router = LLMRouter(cassette=live_layer)
 
     fake_raw = RawLLMResponse(text='{"value":"live"}', tokens_in=10, tokens_out=4, latency_ms=99)
 
-    with patch("recon_agent.llm.router.gemini_call", return_value=fake_raw):
+    with patch("recon_agent.llm.router.openrouter_call", return_value=fake_raw):
         parsed, record = router.call("summary", [{"role": "user", "content": "hi"}], _Schema)
 
     assert parsed.value == "live"
@@ -177,14 +177,14 @@ def test_router_call_live_does_not_write_to_cassette(tmp_path):
 
 
 def test_router_call_record_writes_cassette(tmp_path):
-    """Uses 'summary' (gemini) so gemini_call patch works cleanly."""
+    """Uses 'summary' (openrouter) so openrouter_call patch works cleanly."""
     path = tmp_path / "record.jsonl"
     rec_layer = CassetteLayer(mode="record", path=path)
     router = LLMRouter(cassette=rec_layer)
 
     fake_raw = RawLLMResponse(text='{"value":"recorded"}', tokens_in=7, tokens_out=2, latency_ms=55)
 
-    with patch("recon_agent.llm.router.gemini_call", return_value=fake_raw):
+    with patch("recon_agent.llm.router.openrouter_call", return_value=fake_raw):
         parsed, record = router.call("summary", [{"role": "user", "content": "hi"}], _Schema)
 
     assert parsed.value == "recorded"

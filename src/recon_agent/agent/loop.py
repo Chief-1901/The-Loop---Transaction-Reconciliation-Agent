@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from .budget import Budget, check as budget_check
 from .phases import Phase, Plan, Decide, Act, Observe
 from .state import AgentState, DecideOutput, LLMCallRecord
+from ..recovery import RecoveryLayer
 
 
 class ReconciliationReport(BaseModel):
@@ -32,6 +33,7 @@ class AgentLoop:
         tools: Any,
         budget: Budget,
         llm_router: Any,
+        recovery: RecoveryLayer | None = None,
         logger: Any = None,
         run_dir: Path | None = None,
         max_iterations: int = 30,    # hard ceiling on top of budget
@@ -52,6 +54,7 @@ class AgentLoop:
         self.decide_phase = Decide(self.router, self.logger)
         self.act_phase = Act(self.tools, self.logger)
         self.observe_phase = Observe(self.logger)
+        self.recovery = recovery or RecoveryLayer(logger=logger)
         # Inject the router into LLM-backed tools (classify_discrepancy, propose_correction)
         from ..tools.registry import ToolRegistry
         if hasattr(self.tools, "bind_router"):
@@ -83,10 +86,33 @@ class AgentLoop:
             self.state.tool_calls.append(act_out.raw_record)
 
             if act_out.error:
-                # Phase 4: no recovery layer yet (lands in Phase 5)
-                # Just increment failure count and produce an error observation
-                self.state.consecutive_failures += 1
-                observation = f"FAILED {act_out.tool_name}: {act_out.error.code}"
+                rec = self.recovery.handle(act_out.error, self.state, act_out, self.tools)
+
+                if rec.kind == "retry":
+                    act_out = rec.new_act_output
+                    self.state.tool_calls.append(act_out.raw_record)
+                    if act_out.error:
+                        # retry also failed; treat as a new failure cycle
+                        self.state.consecutive_failures += 1
+                        observation = f"FAILED after retry {act_out.tool_name}: {act_out.error.code}"
+                    else:
+                        self.state.consecutive_failures = 0
+                        observation = self.observe_phase.run(act_out, self.state)
+                elif rec.kind == "replan":
+                    self.state.consecutive_failures += 1
+                    # Force a Decide that returns to PLAN with the hint baked into reasoning
+                    forced = DecideOutput(
+                        next_phase=Phase.PLAN,
+                        reasoning=f"recovery=replan: {rec.reason}. hint={rec.hint}",
+                        recovery_invoked=True,
+                        llm_call=_empty_llm_call(Phase.DECIDE),
+                    )
+                    self.state.apply(forced)
+                    self.state.snapshot_to_disk(self.run_dir)
+                    continue
+                else:  # degrade
+                    self._halt(f"graceful degrade: {rec.reason}")
+                    break
             else:
                 self.state.consecutive_failures = 0
                 observation = self.observe_phase.run(act_out, self.state)

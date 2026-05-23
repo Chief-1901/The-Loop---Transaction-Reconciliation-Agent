@@ -9,6 +9,7 @@ from ..agent.loop import AgentLoop
 from ..agent.budget import Budget
 from ..llm.cassettes import CassetteLayer
 from ..llm.router import LLMRouter
+from ..recovery import RecoveryLayer
 from ..tools.registry import ToolRegistry
 
 
@@ -55,6 +56,7 @@ def run_demo(args: argparse.Namespace) -> int:
         tools=ToolRegistry,
         budget=budget,
         llm_router=router,
+        recovery=RecoveryLayer(),
         run_dir=args.run_dir,
     )
     report = loop.run()

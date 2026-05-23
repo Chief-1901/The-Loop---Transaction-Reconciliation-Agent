@@ -57,3 +57,43 @@ class Plan:
             f"proposals={len(state.proposals)} applied={state.corrections_applied} "
             f"last_reasoning='{state.last_decision_reasoning[:200]}'"
         )
+
+
+class Decide:
+    """LLM-backed decider: emits next phase + halt_reason."""
+
+    PROMPT_PATH = Path(__file__).parent / "prompts" / "decide_system.txt"
+
+    def __init__(self, router: Any, logger: Any = None):
+        self._router = router
+        self._system = self.PROMPT_PATH.read_text(encoding="utf-8")
+        self._logger = logger
+
+    def run(self, observation: str, state: AgentState) -> tuple["DecideOutput", LLMCallRecord]:
+        from .state import DecideOutput  # local to avoid forward-ref
+        messages = [
+            {"role": "system", "content": self._system},
+            {"role": "user", "content":
+                f"Observation: {observation}\n\nState: {state.step=} "
+                f"discrepancies={len(state.discrepancies)} "
+                f"applied={state.corrections_applied} "
+                f"consecutive_failures={state.consecutive_failures}"},
+        ]
+
+        # Send the schema without the LLMCallRecord field (which we populate ourselves)
+        class _DecideOut(BaseModel):
+            next_phase: Phase
+            halt_reason: str | None = None
+            reasoning: str
+            recovery_invoked: bool = False
+
+        out, call = self._router.call(
+            "decide", messages, _DecideOut, step=state.step, phase=Phase.DECIDE
+        )
+        return DecideOutput(
+            next_phase=out.next_phase,
+            halt_reason=out.halt_reason,
+            reasoning=out.reasoning,
+            recovery_invoked=out.recovery_invoked,
+            llm_call=call,
+        ), call

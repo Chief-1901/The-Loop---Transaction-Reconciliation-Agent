@@ -23,16 +23,16 @@ class RouteSpec:
 # Override via PLAN_PROVIDER=openai for the comparison eval (Phase 8)
 PLAN_PROVIDER_OVERRIDE = os.environ.get("PLAN_PROVIDER")
 
-# Allow overriding Gemini model via env var (e.g. if gemini-2.5-flash hits daily quota)
-_GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+# Allow overriding Gemini model via env var (e.g. to test against gemini-2.5-flash)
+_GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash-lite")
 
 ROUTING_TABLE: dict[str, RouteSpec] = {
-    "plan":        RouteSpec("gemini", _GEMINI_MODEL, "Cost-optimized for free-tier daily quota. Flash handles ReAct-style single-step planning with structured output reliably; Pro reserved for shadow-comparison if needed."),
-    "decide":      RouteSpec("gemini", _GEMINI_MODEL, "Meta-cognition gated by structured-output schema (HALT|PLAN binary). Flash is sufficient."),
-    "classify":    RouteSpec("openai", "gpt-4o-mini",  "Cheap structured classification."),
-    "summary":     RouteSpec("gemini", _GEMINI_MODEL, "One call, NL only, cheap."),
-    "shadow_plan": RouteSpec("openai", "gpt-4o",       "Apples-to-apples capable comparison."),
-    "propose":     RouteSpec("gemini", _GEMINI_MODEL, "Per-correction LLM call; cheap."),
+    "plan":        RouteSpec("gemini", _GEMINI_MODEL, "gemini-2.5-flash-lite: cheapest tier in the Flash family. Generous free-tier quota for high-volume agent workloads. Structured-output reliability is sufficient for ReAct's constrained single-step planning."),
+    "decide":      RouteSpec("gemini", _GEMINI_MODEL, "Meta-cognition gated by binary HALT|PLAN schema. flash-lite is sufficient; in-family with plan amortizes the Gemini client."),
+    "classify":    RouteSpec("openai", "gpt-4o-mini",  "Cheap structured classification. OpenAI's json_schema strict mode is the most reliable for high-volume enum tagging."),
+    "summary":     RouteSpec("gemini", _GEMINI_MODEL, "One call at end of run, natural-language only. In-family with plan/decide."),
+    "shadow_plan": RouteSpec("openai", "gpt-4o",       "Capable-tier comparison vs Gemini flash-lite on Plan. Only invoked when --shadow flag is set."),
+    "propose":     RouteSpec("gemini", _GEMINI_MODEL, "Per-correction LLM call. flash-lite handles the per-discrepancy proposal schema; in-family with plan/decide."),
 }
 
 

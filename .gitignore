@@ -24,3 +24,7 @@ src/recon_agent/data/fixtures/*.json
 
 # Claude Code session state
 .claude/
+
+# Throwaway dev scripts and stray demo artifacts at repo root
+scripts/
+/corrections.jsonl

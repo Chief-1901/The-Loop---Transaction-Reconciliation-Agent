@@ -10,11 +10,14 @@ class ModelPrice(BaseModel):
 
 
 PRICING: dict[str, ModelPrice] = {
-    "gemini-2.5-pro":        ModelPrice(input=1.25,  output=5.00),
-    "gemini-2.5-flash":      ModelPrice(input=0.075, output=0.30),
-    "gemini-2.5-flash-lite": ModelPrice(input=0.01,  output=0.04),
-    "gpt-4o":                ModelPrice(input=2.50,  output=10.00),
-    "gpt-4o-mini":           ModelPrice(input=0.15,  output=0.60),
+    "gemini-2.5-pro":          ModelPrice(input=1.25,  output=5.00),
+    "gemini-2.5-flash":        ModelPrice(input=0.075, output=0.30),
+    "gemini-2.5-flash-lite":   ModelPrice(input=0.01,  output=0.04),
+    # gemini-3.x models (fallback when 2.5-flash quota exhausted)
+    "gemini-3.1-flash-lite":         ModelPrice(input=0.01,  output=0.04),
+    "gemini-3.1-flash-lite-preview": ModelPrice(input=0.01,  output=0.04),
+    "gpt-4o":                  ModelPrice(input=2.50,  output=10.00),
+    "gpt-4o-mini":             ModelPrice(input=0.15,  output=0.60),
 }
 
 

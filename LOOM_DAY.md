@@ -34,13 +34,13 @@ Remove-Item Env:\LLM_MODE
 You should see a cyan-bordered live panel. Tool rows fill in slowly (about one per second). Headers show real "openrouter" / "openai" provider names. Ends with PASS + run summary.
 
 ```powershell
-# 2. Verify Scene 2 — recovery scenario with dashboard
-$env:LLM_MODE = "replay"
-.venv\Scripts\python -m evals.runner --scenario recovery_01_api_429 --dashboard --slow-ms 600
-Remove-Item Env:\LLM_MODE
+# 2. Verify Scene 2 — recovery cascade (forced failures, MagicMock router, no API cost)
+.venv\Scripts\python scripts\loom_scene2_recovery.py
 ```
 
-You should see fetch_api fail multiple times (red ERR markers), recovery dispatched, more attempts, eventually the agent completes. Real cassette data.
+You should see fetch_api show **ERR** markers in the tool table (multiple rows), the agent retry, replan, retry again, and finally halt with `Halt reason: graceful degrade: 3+ consecutive failures`. Dashboard labels show real provider/model names (`openrouter / openai/gpt-oss-120b:free`).
+
+**Why a helper script for Scene 2 instead of the eval runner:** the `recovery_01_api_429` cassette was recorded with `FETCH_API_FAIL_RATE=0.0` (replay determinism trade-off — fetch_api's RNG is partially time-dependent, so recording with failures would make replay diverge). The script forces `FAIL_RATE=1.0`, runs the **real** AgentLoop + RecoveryLayer + Dashboard, just with a mock LLM router so it's deterministic and free. Full details in Scene 2 below.
 
 ```powershell
 # 3. Verify Scene 4 — full eval suite (no dashboard, full speed for CI parity)

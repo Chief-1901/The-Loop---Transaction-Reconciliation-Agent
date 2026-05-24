@@ -208,6 +208,41 @@ def openai_call(
     )
 
 
+def _simplify_schema_for_openrouter(schema: Any) -> Any:
+    """Flatten anyOf/{type:null} constructs to just the non-null type.
+
+    OpenRouter free-tier models (gpt-oss-*) tend to emit {"type": "null"} as a literal
+    JSON object rather than JSON null when they see anyOf: [{...}, {type: null}].
+    Strip the null branch so the model just outputs a string/object directly.
+    """
+    if isinstance(schema, dict):
+        # Resolve $defs if present at top level
+        defs = schema.get("$defs", {})
+        if "anyOf" in schema:
+            any_of = schema["anyOf"]
+            non_null = [v for v in any_of if v != {"type": "null"}]
+            if len(non_null) == 1 and len(any_of) > len(non_null):
+                # Optional field: just use the non-null type directly
+                merged = dict(non_null[0])
+                for k, v in schema.items():
+                    if k not in ("anyOf",):
+                        merged[k] = v
+                return _simplify_schema_for_openrouter(merged)
+        result = {}
+        for k, v in schema.items():
+            if k == "$defs":
+                continue  # strip defs — inline resolution happens via $ref handling
+            if k == "$ref":
+                ref_name = v.split("/")[-1]
+                if ref_name in defs:
+                    return _simplify_schema_for_openrouter(defs[ref_name])
+            result[k] = _simplify_schema_for_openrouter(v)
+        return result
+    if isinstance(schema, list):
+        return [_simplify_schema_for_openrouter(item) for item in schema]
+    return schema
+
+
 def openrouter_call(
     model: str,
     messages: list[dict],
@@ -224,8 +259,11 @@ def openrouter_call(
     )
     started = time.time()
 
-    # Inject the schema as a hint in the first system message (or prepend a new one)
-    schema_str = json.dumps(response_schema.model_json_schema(), indent=2)
+    # Inject the schema as a hint in the first system message (or prepend a new one).
+    # Simplify anyOf/{$ref,null} constructs that confuse some OpenRouter models — replace
+    # with just the non-null type (models should emit null as JSON null, not as an object).
+    raw_schema = response_schema.model_json_schema()
+    schema_str = json.dumps(_simplify_schema_for_openrouter(raw_schema), indent=2)
     schema_hint = (
         "Respond with a single JSON object matching this schema EXACTLY. "
         "No prose, no markdown fences. JSON only.\n\nSchema:\n" + schema_str
@@ -236,27 +274,47 @@ def openrouter_call(
     else:
         augmented.insert(0, {"role": "system", "content": schema_hint})
 
-    try:
-        resp = client.chat.completions.create(
-            model=model,
-            messages=augmented,
-            response_format={"type": "json_object"},
-            max_tokens=4096,
-            temperature=0.2,
-        )
-    except RateLimitError as e:
-        raise LLMError("LLM_RATE_LIMIT", str(e), retriable=True) from e
-    except APITimeoutError as e:
-        raise LLMError("LLM_TIMEOUT", str(e), retriable=True) from e
-    except Exception as e:
-        raise LLMError("LLM_PROVIDER_ERROR", str(e), retriable=False) from e
+    _last_error: Exception | None = None
+    for attempt in range(3):
+        if attempt > 0:
+            time.sleep(0.5)
+        try:
+            resp = client.chat.completions.create(
+                model=model,
+                messages=augmented,
+                response_format={"type": "json_object"},
+                max_tokens=4096,
+                temperature=0.2,
+            )
+        except RateLimitError as e:
+            raise LLMError("LLM_RATE_LIMIT", str(e), retriable=True) from e
+        except APITimeoutError as e:
+            raise LLMError("LLM_TIMEOUT", str(e), retriable=True) from e
+        except Exception as e:
+            raise LLMError("LLM_PROVIDER_ERROR", str(e), retriable=False) from e
 
-    latency_ms = int((time.time() - started) * 1000)
-    choice = resp.choices[0].message
-    usage = resp.usage
-    return RawLLMResponse(
-        text=choice.content or "",
-        tokens_in=usage.prompt_tokens if usage else 0,
-        tokens_out=usage.completion_tokens if usage else 0,
-        latency_ms=latency_ms,
-    )
+        if not resp.choices:
+            _last_error = ValueError("openrouter returned no choices")
+            continue
+        content = resp.choices[0].message.content
+        if not content or not content.strip():
+            _last_error = ValueError("openrouter returned empty content")
+            continue
+        # Validate JSON is parseable before returning
+        try:
+            json.loads(content)
+        except json.JSONDecodeError as e:
+            _last_error = e
+            continue
+
+        latency_ms = int((time.time() - started) * 1000)
+        usage = resp.usage
+        return RawLLMResponse(
+            text=content,
+            tokens_in=usage.prompt_tokens if usage else 0,
+            tokens_out=usage.completion_tokens if usage else 0,
+            latency_ms=latency_ms,
+        )
+
+    # All retries exhausted
+    raise LLMError("LLM_PROVIDER_ERROR", f"openrouter: all retries failed: {_last_error}", retriable=False)

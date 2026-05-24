@@ -42,7 +42,8 @@ def test_routing_table_models_non_empty():
 def test_plan_uses_openrouter_by_default():
     spec = _route_for("plan")
     assert spec.provider == "openrouter"
-    assert "deepseek" in spec.model
+    # Free-tier model name pattern: "<vendor>/<model>:free"
+    assert ":free" in spec.model
 
 
 def test_classify_uses_openai_mini():

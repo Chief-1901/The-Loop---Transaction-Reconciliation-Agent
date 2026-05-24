@@ -71,7 +71,17 @@ def run_one(scenario: Scenario, llm_mode: str, out_root: Path) -> ScenarioResult
                       if v is not None}
         budget = Budget(**b_args)
 
-        recovery = RecoveryLayer()
+        # Minimal JSONL logger so verify.py can detect recovery.dispatched events
+        log_path = run_dir / "log.jsonl"
+
+        class _JsonlLogger:
+            def info(self, event: str, **kwargs):
+                import json as _json
+                with open(log_path, "a", encoding="utf-8") as _f:
+                    _f.write(_json.dumps({"event": event, **kwargs}) + "\n")
+
+        _logger = _JsonlLogger()
+        recovery = RecoveryLayer(logger=_logger)
         loop = AgentLoop(
             task="Reconcile CSV vs PayU API. Apply corrections to ledger.",
             tools=ToolRegistry,

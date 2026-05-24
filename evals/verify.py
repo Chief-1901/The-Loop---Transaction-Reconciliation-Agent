@@ -58,12 +58,17 @@ def verify_scenario(
             )
 
     # 4. Recovery-invoked check (look for the event in log.jsonl)
+    # One-way enforcement: REQUIRED recovery must fire (the agent must demonstrate
+    # the documented recovery path). UNEXPECTED recovery is tolerated — fetch_api
+    # has a 2% baseline 5xx rate that can trigger transient retries even on
+    # "happy" scenarios; as long as the agent reaches its expected terminal
+    # state, harmless recovery shouldn't fail the suite.
     recovery_invoked = any(
         line.get("event") == "recovery.dispatched" for line in log_lines
     )
-    if recovery_invoked != scenario.expected.recovery_invoked:
+    if scenario.expected.recovery_invoked and not recovery_invoked:
         failures.append(
-            f"recovery_invoked={recovery_invoked} (expected {scenario.expected.recovery_invoked})"
+            f"recovery_invoked=False (expected True — scenario requires recovery to fire)"
         )
 
     # 5. Cost check

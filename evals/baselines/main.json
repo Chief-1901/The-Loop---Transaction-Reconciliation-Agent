@@ -13,7 +13,7 @@
       "findings_by_kind": {},
       "recovery_invoked": false,
       "cost_inr": 0.0,
-      "duration_s": 0.18,
+      "duration_s": 0.13,
       "failures": []
     },
     {
@@ -23,7 +23,7 @@
       "findings_by_kind": {},
       "recovery_invoked": false,
       "cost_inr": 0.0,
-      "duration_s": 0.07,
+      "duration_s": 0.05,
       "failures": []
     },
     {
@@ -33,7 +33,7 @@
       "findings_by_kind": {},
       "recovery_invoked": false,
       "cost_inr": 0.0,
-      "duration_s": 0.07,
+      "duration_s": 0.03,
       "failures": []
     },
     {
@@ -43,7 +43,7 @@
       "findings_by_kind": {},
       "recovery_invoked": false,
       "cost_inr": 0.0,
-      "duration_s": 0.19,
+      "duration_s": 0.13,
       "failures": []
     },
     {
@@ -53,7 +53,7 @@
       "findings_by_kind": {},
       "recovery_invoked": false,
       "cost_inr": 0.0,
-      "duration_s": 0.18,
+      "duration_s": 0.1,
       "failures": []
     },
     {
@@ -63,7 +63,7 @@
       "findings_by_kind": {},
       "recovery_invoked": false,
       "cost_inr": 0.0,
-      "duration_s": 0.15,
+      "duration_s": 0.08,
       "failures": []
     },
     {
@@ -75,7 +75,7 @@
       },
       "recovery_invoked": false,
       "cost_inr": 0.95,
-      "duration_s": 0.64,
+      "duration_s": 0.46,
       "failures": []
     },
     {
@@ -85,7 +85,7 @@
       "findings_by_kind": {},
       "recovery_invoked": true,
       "cost_inr": 0.0,
-      "duration_s": 0.08,
+      "duration_s": 0.06,
       "failures": []
     },
     {
@@ -95,7 +95,7 @@
       "findings_by_kind": {},
       "recovery_invoked": true,
       "cost_inr": 0.0,
-      "duration_s": 3.58,
+      "duration_s": 3.36,
       "failures": []
     },
     {
@@ -109,7 +109,7 @@
       },
       "recovery_invoked": false,
       "cost_inr": 0.15,
-      "duration_s": 0.18,
+      "duration_s": 0.15,
       "failures": []
     },
     {
@@ -119,7 +119,7 @@
       "findings_by_kind": {},
       "recovery_invoked": false,
       "cost_inr": 0.0,
-      "duration_s": 0.08,
+      "duration_s": 0.07,
       "failures": []
     },
     {
@@ -129,7 +129,7 @@
       "findings_by_kind": {},
       "recovery_invoked": true,
       "cost_inr": 0.0,
-      "duration_s": 0.12,
+      "duration_s": 0.1,
       "failures": []
     }
   ]

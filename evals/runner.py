@@ -28,7 +28,8 @@ def discover_scenarios() -> list[Scenario]:
     return scenarios
 
 
-def run_one(scenario: Scenario, llm_mode: str, out_root: Path) -> ScenarioResult:
+def run_one(scenario: Scenario, llm_mode: str, out_root: Path,
+            enable_dashboard: bool = False, slow_ms: int = 0) -> ScenarioResult:
     from recon_agent.agent.budget import Budget
     from recon_agent.agent.loop import AgentLoop
     from recon_agent.data.generate_fixtures import generate_fixtures
@@ -82,6 +83,14 @@ def run_one(scenario: Scenario, llm_mode: str, out_root: Path) -> ScenarioResult
 
         _logger = _JsonlLogger()
         recovery = RecoveryLayer(logger=_logger)
+        # Slow-mode wraps the router to inject sleep between calls (for Loom recording visibility)
+        if slow_ms > 0:
+            _original_call = router.call
+            def _slow_call(*args, **kwargs):
+                time.sleep(slow_ms / 1000.0)
+                return _original_call(*args, **kwargs)
+            router.call = _slow_call
+
         loop = AgentLoop(
             task="Reconcile CSV vs PayU API. Apply corrections to ledger.",
             tools=ToolRegistry,
@@ -89,7 +98,7 @@ def run_one(scenario: Scenario, llm_mode: str, out_root: Path) -> ScenarioResult
             llm_router=router,
             recovery=recovery,
             run_dir=run_dir,
-            enable_dashboard=False,
+            enable_dashboard=enable_dashboard,
             max_iterations=40,
         )
         try:
@@ -162,6 +171,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--tag", default=None,
                         help="Suffix on the output dir name (used for comparison runs).")
     parser.add_argument("--output-json", type=Path, default=None)
+    parser.add_argument("--dashboard", action="store_true",
+                        help="Show the Rich live dashboard during each scenario "
+                             "(useful for Loom recording; default off for CI).")
+    parser.add_argument("--slow-ms", type=int, default=0,
+                        help="Inject N ms of sleep between LLM calls (Loom-recording aid; "
+                             "default 0 = full speed).")
     args = parser.parse_args(argv)
 
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
@@ -176,7 +191,9 @@ def main(argv: list[str] | None = None) -> int:
     results: list[ScenarioResult] = []
     for s in scenarios:
         print(f"-- {s.name} ...", end="", flush=True)
-        result = run_one(s, args.llm_mode, out_root)
+        result = run_one(s, args.llm_mode, out_root,
+                         enable_dashboard=args.dashboard,
+                         slow_ms=args.slow_ms)
         results.append(result)
         marker = "PASS" if result.passed else "FAIL"
         print(f" {marker} ({result.duration_s}s)")

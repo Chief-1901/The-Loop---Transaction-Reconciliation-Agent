@@ -12,34 +12,55 @@
 - **Windows Terminal** (Microsoft Store, free) — looks WAY better than cmd.exe for the dashboard
 - Your editor — VS Code, Cursor, or whatever you usually use
 
-### Verify everything works (5 min)
+### Two recording approaches — PICK ONE
 
-Open a PowerShell terminal in the project folder. Run these three commands in order:
+**Approach A (RECOMMENDED): Real cassette replay with dashboard.** Uses the actual recorded LLM responses from the 12 cassettes. Dashboard shows real provider/model names ("openrouter / openai/gpt-oss-120b:free"). 100% authentic — what reviewers will see when they `make eval` themselves.
+
+**Approach B (fallback): MagicMock helper scripts.** Faster, simpler, doesn't depend on cassettes existing. Dashboard shows realistic-looking labels but it IS a mock. Use this if a cassette gets corrupted mid-record-day or you want a more controlled demo.
+
+Both are documented below. Approach A is the right default — try it first.
+
+### Verify Approach A works (5 min)
+
+Open a PowerShell terminal in the project folder. Run these in order:
 
 ```powershell
-# 1. Dashboard demo (no API cost, ~15 sec) — proves Scene 1 will look good
-.venv\Scripts\python scripts\_see_dashboard.py
+# 1. Verify Scene 1 — real cassette replay with dashboard + slow-mo for readability
+$env:LLM_MODE = "replay"
+.venv\Scripts\python -m evals.runner --scenario happy_02_minor_timezone --dashboard --slow-ms 800
+Remove-Item Env:\LLM_MODE
 ```
 
-You should see a cyan-bordered panel, 5 tool rows appear one by one, then summary. If colors look broken → use Windows Terminal instead of cmd.exe.
+You should see a cyan-bordered live panel. Tool rows fill in slowly (about one per second). Headers show real "openrouter" / "openai" provider names. Ends with PASS + run summary.
 
 ```powershell
-# 2. Recovery demo (no API cost, ~12 sec) — proves Scene 2 will look good
-.venv\Scripts\python scripts\loom_scene2_recovery.py
+# 2. Verify Scene 2 — recovery scenario with dashboard
+$env:LLM_MODE = "replay"
+.venv\Scripts\python -m evals.runner --scenario recovery_01_api_429 --dashboard --slow-ms 600
+Remove-Item Env:\LLM_MODE
 ```
 
-You should see: fetch_api keep failing in the table, then the agent halts with "graceful degrade: 3+ consecutive failures". 
+You should see fetch_api fail multiple times (red ERR markers), recovery dispatched, more attempts, eventually the agent completes. Real cassette data.
 
 ```powershell
-# 3. Full eval (cassette replay, no API cost, ~6 sec) — proves Scene 4
+# 3. Verify Scene 4 — full eval suite (no dashboard, full speed for CI parity)
 $env:LLM_MODE = "replay"
 .venv\Scripts\python -m evals.runner
 Remove-Item Env:\LLM_MODE
 ```
 
-You should see `-- <scenario> ... PASS` for all 12 scenarios, ending with `Result: 12/12 PASS`.
+12/12 PASS in ~6 seconds.
 
-If all three work cleanly, you're ready to record.
+### Verify Approach B works (only if Approach A flickers or breaks)
+
+```powershell
+.venv\Scripts\python scripts\_see_dashboard.py
+.venv\Scripts\python scripts\loom_scene2_recovery.py
+```
+
+Both should run their 12-second dashboard demos cleanly. These use MagicMock under the hood.
+
+If your chosen approach works cleanly, you're ready to record. If both look weird → cmd.exe vs Windows Terminal is the usual culprit.
 
 ### Set up your screen ONCE before recording
 
@@ -50,98 +71,110 @@ If all three work cleanly, you're ready to record.
 
 ---
 
-## SCENE 1 — Live Happy Path (3-5 min)
+## SCENE 1 — Happy Path with Dashboard (3-5 min)
 
-**Goal:** Show the agent's dashboard updating live as it walks through a successful reconciliation.
+**Goal:** Show the agent's dashboard updating live as it walks through a successful reconciliation using REAL recorded cassette data.
 
 ### Setup
 
 - One terminal window, maximized
 - Loom in "Screen + Mic" mode
 
-### Commands + script
+### Commands + script (Approach A — recommended)
 
 **Start recording**, then say:
 
-> "Hi, I'm walking through Recon Agent — my submission for the GrabOn AI Labs Loop assignment. This is a single autonomous agent that reconciles transactions across two mock data sources. I'll show you the live agent loop first."
+> "Hi, I'm walking through Recon Agent — my submission for the GrabOn AI Labs Loop assignment. This is a single autonomous agent that reconciles transactions across two mock data sources. I'll show the live agent loop first, running against the `happy_02_minor_timezone` eval scenario using cassette replay — same data the CI gate runs, no API calls in the recording but the responses are the real LLM outputs we captured."
 
 Type and run:
+
+```powershell
+$env:LLM_MODE = "replay"
+.venv\Scripts\python -m evals.runner --scenario happy_02_minor_timezone --dashboard --slow-ms 800
+Remove-Item Env:\LLM_MODE
+```
+
+**As the panel appears**, say:
+
+> "The dashboard is built with Rich — Python's terminal library. Cyan border, budget bars, tool-call table — all updates live as the agent runs. Top row shows current step, current phase, tool count, LLM call count, discrepancies found, corrections applied."
+
+**As tools appear in the table (~one per second with slow-mo)**, narrate:
+
+> "Step 1 — `load_csv` pulls 500 transactions from the CSV fixture. Step 2 — `fetch_api` pulls the matching PayU settlement records. Step 3 — `normalize_timezone` converts IST timestamps to UTC and flags suspicious IST-stored-as-UTC values. Step 4 — `match_records` pairs them up. Step 5 — `classify_discrepancy` invokes the LLM to classify the unmatched. Step 6 — `propose_correction` proposes a fix for each. Step 7 — `apply_correction` appends to the corrections ledger. Final step — `verify_reconciliation` confirms."
+
+> "Notice the budget bars filling. Notice 'Last reasoning' updating with the LLM's actual thought from the cassette. The provider/model columns show `openrouter` and `openai/gpt-oss-120b:free` — that's the real routing."
+
+**When the panel closes and the PASS line prints**, say:
+
+> "Status: completed. Verification: PASS. The eval runner just executed the same scenario the CI gate runs, with the dashboard visible. Same agent, same code, real recorded data."
+
+**End Scene 1 recording.** Stop recording, save the take.
+
+### Fallback (Approach B — if cassette replay flickers or hits issues)
 
 ```powershell
 .venv\Scripts\python scripts\_see_dashboard.py
 ```
 
-**As the panel appears**, say:
-
-> "The dashboard you're seeing is built with Rich — Python's terminal library. The cyan border, the budget bars, the tool-call table — all of it updates live as the agent runs. Top row shows current step, current phase, total tool calls so far."
-
-**As tools appear in the table (~1.2 sec apart)**, narrate:
-
-> "Step 1 — agent picks `load_csv`. Tool succeeds, OK marker appears. Step 2 — `fetch_api` fetches mock PayU settlements. Step 3 — `normalize_timezone` converts IST timestamps to UTC. Step 4 — `match_records` pairs up the CSV and API records. Step 5 — `verify_reconciliation` checks the final state."
-
-> "Notice the budget bars filling as tokens accumulate. Notice the 'Last reasoning' line at the bottom updating each iteration. This is what an autonomous agent looks like when it's actually doing something."
-
-**When the panel closes and the summary prints**, say:
-
-> "Final status: completed. Five tool calls, ten LLM calls — five Plan + five Decide. Total cost is shown in rupees. The agent halted because the Decide phase returned HALT — the model decided reconciliation was complete. This whole run was deterministic — no real API calls, runs in about 12 seconds. The real version that hits the live LLM looks identical, just slower and costs about a rupee."
-
-**End Scene 1 recording.** Stop recording, save the take.
+This uses a MagicMock router instead of cassettes. Faster, simpler, but the labels are synthetic. Only use if Approach A misbehaves on recording day. Adjust your narration to say "this is the dashboard the live agent shows; for this demo I'm driving it with a mock to skip API latency."
 
 ---
 
 ## SCENE 2 — Failure Recovery (3-5 min)
 
-**Goal:** Show that when a tool keeps failing, the agent recovers — retries, replans, and ultimately degrades cleanly instead of crashing or looping forever.
+**Goal:** Show that when a tool keeps failing, the agent recovers — retries, replans, eventually degrades — instead of crashing or looping forever.
 
 ### Setup
 
-Same terminal. Clear the screen first: `Clear-Host` (or `cls`).
+Same terminal. Clear: `Clear-Host` (or `cls`).
 
-### Commands + script
+### Commands + script (Approach A — recommended)
 
 **Start recording**, then say:
 
-> "Now the failure-recovery path. I'm going to force `fetch_api` to fail every single time — 100% failure rate. The agent will try, fail, retry with backoff, fail again, escalate, and eventually halt gracefully. The recovery layer handles this without crashing the loop."
+> "Now the failure-recovery path. The `recovery_01_api_429` eval scenario forces `fetch_api` to fail at sixty percent — the runner records what the agent does when faced with a flaky downstream API. Cassette replay shows the exact recorded behavior."
 
 Type and run:
+
+```powershell
+$env:LLM_MODE = "replay"
+.venv\Scripts\python -m evals.runner --scenario recovery_01_api_429 --dashboard --slow-ms 600
+Remove-Item Env:\LLM_MODE
+```
+
+**As `fetch_api` rows appear (some ERR, some OK)**, narrate:
+
+> "fetch_api hits a RATE_LIMIT — red ERR marker. Recovery classifier sees a transient error, dispatches a retry with exponential backoff plus jitter. Retry fires. Some succeed, some keep failing."
+
+> "After multiple failures on the same error code, the classifier escalates: 'this transient error is becoming persistent.' The recovery layer dispatches a REPLAN — the loop jumps back to PLAN with a hint baked into the next planner's context."
+
+> "Agent eventually completes — finds the discrepancies, classifies them, applies corrections to the ledger. Real recorded behavior from a live run."
+
+**When PASS prints**, say:
+
+> "Status: completed. Recovery invoked: true. The eval verifier asserts both — the scenario passes only if recovery actually fired AND the agent reached a clean terminal state."
+
+**Then show the structured log**, say:
+
+> "Every recovery decision is logged. Here's the trail."
+
+```powershell
+Get-Content reports\eval_*\recovery_01_api_429\log.jsonl | Select-String "recovery.dispatched" | Select-Object -First 6
+```
+
+**As the lines appear**, say:
+
+> "Each recovery dispatch is one JSON line: kind, reason, hint. A reviewer asking 'why did the agent retry at step 4' can grep this file. The rubric calls this 'observability shows every decision' — that's what these lines are."
+
+**End Scene 2 recording.**
+
+### Fallback (Approach B — synthetic recovery cascade if you want a controlled demo)
 
 ```powershell
 .venv\Scripts\python scripts\loom_scene2_recovery.py
 ```
 
-**As `fetch_api` shows ERR in the table**, narrate:
-
-> "First call to fetch_api — RATE_LIMIT error, marked ERR in red. The recovery classifier saw a transient error, dispatched a retry. Backoff kicks in — about a second of sleep — then the retry fires. Also fails."
-
-> "After three retries on the same error code, the classifier escalates: 'this transient error is now persistent.' The recovery layer dispatches a REPLAN — the loop jumps back to PLAN with a hint to the next planner: 'fetch_api unreliable, consider alternative.'"
-
-> "In this demo the mock planner stubbornly picks fetch_api again, so we get another failure. After three consecutive failures regardless of error type, the classifier short-circuits to DEGRADE. The agent halts cleanly with status 'graceful degrade'."
-
-**When the panel closes**, point at the halt_reason line:
-
-> "Halt reason: graceful degrade, 3+ consecutive failures. Not a crash. Not an infinite loop. The agent recognized the system was stuck and produced a partial report instead of pretending success."
-
-**Then show the log file**, say:
-
-> "Every recovery decision is logged structurally. Let me show you."
-
-Run:
-
-```powershell
-type reports\_loom_scene2_recovery\log.jsonl | findstr recovery.dispatched | Select-Object -First 6
-```
-
-(If `findstr` and `Select-Object` mix weirdly, use this instead:)
-
-```powershell
-Get-Content reports\_loom_scene2_recovery\log.jsonl | Select-String "recovery.dispatched" | Select-Object -First 6
-```
-
-**As the lines appear**, say:
-
-> "Each recovery dispatch is one JSON line — kind, reason, hint. A reviewer asking 'why did the agent give up at step 5' can grep this file and see the exact chain: retry, retry, retry, replan, replan, degrade. This is what the rubric means by 'observability shows every decision'."
-
-**End Scene 2 recording.**
+This forces 100% failure on fetch_api and walks the full retry → replan → degrade cascade explicitly. Use if you want to dramatize the degrade path. Real cassettes don't always trigger degrade because the recovery often succeeds before then.
 
 ---
 

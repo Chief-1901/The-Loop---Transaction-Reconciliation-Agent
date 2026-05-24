@@ -1,4 +1,5 @@
 from __future__ import annotations
+import os
 import time
 from datetime import datetime, timezone
 from enum import Enum
@@ -32,12 +33,13 @@ class Plan:
     PROMPT_PATH = Path(__file__).parent / "prompts" / "plan_system.txt"
 
     def __init__(self, router: Any, tool_registry: Any, logger: Any = None,
-                 shadow: Any | None = None):
+                 shadow: Any | None = None, run_dir: Path | None = None):
         self._router = router
         self._registry = tool_registry
         self._system = self.PROMPT_PATH.read_text(encoding="utf-8")
         self._logger = logger
         self._shadow = shadow
+        self._run_dir = run_dir
 
     def run(self, state: AgentState) -> tuple[PlanOutput, LLMCallRecord]:
         schemas = self._registry.schemas_for_llm()
@@ -74,10 +76,18 @@ class Plan:
         tool = out.intended_tool
         args = dict(out.tool_args)
 
-        if tool == "load_csv" and not args.get("path"):
-            m = re.search(r"CSV file:\s*(.*?\.csv)", task_brief)
-            if m:
-                args["path"] = m.group(1)
+        if tool == "load_csv":
+            path_val = args.get("path", "")
+            # If the path doesn't exist as given, try resolving via FIXTURE_DIR
+            if path_val and not Path(path_val).exists():
+                fixture_dir = os.environ.get("FIXTURE_DIR", "src/recon_agent/data/fixtures")
+                candidate = str(Path(fixture_dir) / Path(path_val).name)
+                if Path(candidate).exists():
+                    args["path"] = candidate
+            elif not path_val:
+                m = re.search(r"CSV file:\s*(.*?\.csv)", task_brief)
+                if m:
+                    args["path"] = m.group(1)
 
         elif tool == "fetch_api" and not args.get("endpoint"):
             args["endpoint"] = "payu_settlements"
@@ -119,6 +129,9 @@ class Plan:
                 next_idx = state.corrections_applied
                 if next_idx < len(state.proposals):
                     args["proposal"] = state.proposals[next_idx].model_dump()
+            # Always write the ledger to run_dir so verify.py can find it
+            if self._run_dir is not None:
+                args["ledger_path"] = str(self._run_dir / "corrections.jsonl")
 
         elif tool == "verify_reconciliation":
             if not args.get("csv_records") and state.txns_csv:
@@ -155,8 +168,8 @@ class Plan:
             lines.append(f"HINT: api records available ({len(state.txns_api)}). Next: normalize_timezone with the api records.")
         if state.timezone_normalized and not state.matches and not state.unmatched_csv:
             lines.append(f"HINT: tz_normalized. Next: match_records with csv and api records.")
-        if state.unmatched_csv or state.unmatched_api or state.value_conflicts:
-            lines.append(f"HINT: unmatched_csv={len(state.unmatched_csv)} unmatched_api={len(state.unmatched_api)} value_conflicts={len(state.value_conflicts)}. Next: classify_discrepancy.")
+        if state.unmatched_csv or state.unmatched_api or state.value_conflicts or state.timezone_suspects:
+            lines.append(f"HINT: unmatched_csv={len(state.unmatched_csv)} unmatched_api={len(state.unmatched_api)} value_conflicts={len(state.value_conflicts)} timezone_suspects={len(state.timezone_suspects)}. Next: classify_discrepancy.")
         if state.discrepancies and len(state.proposals) < len(state.discrepancies):
             next_d = state.discrepancies[len(state.proposals)]
             lines.append(f"HINT: {len(state.discrepancies) - len(state.proposals)} discrepancies need proposals. Next: propose_correction for txn_id={next_d.txn_id} kind={next_d.kind}.")

@@ -60,7 +60,8 @@ class AgentLoop:
             enabled=shadow_enabled,
             log_path=self.run_dir / "shadow.jsonl",
         )
-        self.plan_phase = Plan(self.router, self.tools, self.logger, shadow=self.shadow)
+        self.plan_phase = Plan(self.router, self.tools, self.logger, shadow=self.shadow,
+                               run_dir=self.run_dir)
         self.decide_phase = Decide(self.router, self.logger)
         self.act_phase = Act(self.tools, self.logger)
         self.observe_phase = Observe(self.logger)

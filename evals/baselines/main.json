@@ -1,0 +1,136 @@
+{
+  "summary": {
+    "total": 12,
+    "passed": 12,
+    "pass_rate": 1.0,
+    "failures": []
+  },
+  "scenarios": [
+    {
+      "name": "budget_01_token_ceiling",
+      "passed": true,
+      "status": "halted",
+      "findings_by_kind": {},
+      "recovery_invoked": false,
+      "cost_inr": 0.0,
+      "duration_s": 0.18,
+      "failures": []
+    },
+    {
+      "name": "budget_02_walltime_ceiling",
+      "passed": true,
+      "status": "halted",
+      "findings_by_kind": {},
+      "recovery_invoked": false,
+      "cost_inr": 0.0,
+      "duration_s": 0.07,
+      "failures": []
+    },
+    {
+      "name": "happy_01_clean_reconciliation",
+      "passed": true,
+      "status": "completed",
+      "findings_by_kind": {},
+      "recovery_invoked": false,
+      "cost_inr": 0.0,
+      "duration_s": 0.07,
+      "failures": []
+    },
+    {
+      "name": "happy_02_minor_timezone",
+      "passed": true,
+      "status": "completed",
+      "findings_by_kind": {},
+      "recovery_invoked": false,
+      "cost_inr": 0.0,
+      "duration_s": 0.19,
+      "failures": []
+    },
+    {
+      "name": "happy_03_encoding",
+      "passed": true,
+      "status": "completed",
+      "findings_by_kind": {},
+      "recovery_invoked": false,
+      "cost_inr": 0.0,
+      "duration_s": 0.18,
+      "failures": []
+    },
+    {
+      "name": "happy_04_duplicates",
+      "passed": true,
+      "status": "halted",
+      "findings_by_kind": {},
+      "recovery_invoked": false,
+      "cost_inr": 0.0,
+      "duration_s": 0.15,
+      "failures": []
+    },
+    {
+      "name": "happy_05_value_mismatch",
+      "passed": true,
+      "status": "halted",
+      "findings_by_kind": {
+        "value_mismatch": 11
+      },
+      "recovery_invoked": false,
+      "cost_inr": 0.95,
+      "duration_s": 0.64,
+      "failures": []
+    },
+    {
+      "name": "impossible_01_corrupted_source",
+      "passed": true,
+      "status": "degraded",
+      "findings_by_kind": {},
+      "recovery_invoked": true,
+      "cost_inr": 0.0,
+      "duration_s": 0.08,
+      "failures": []
+    },
+    {
+      "name": "impossible_02_irreconcilable",
+      "passed": true,
+      "status": "halted",
+      "findings_by_kind": {},
+      "recovery_invoked": true,
+      "cost_inr": 0.0,
+      "duration_s": 3.58,
+      "failures": []
+    },
+    {
+      "name": "recovery_01_api_429",
+      "passed": true,
+      "status": "halted",
+      "findings_by_kind": {
+        "missing_in_api": 10,
+        "missing_in_csv": 2,
+        "value_mismatch": 13
+      },
+      "recovery_invoked": false,
+      "cost_inr": 0.15,
+      "duration_s": 0.18,
+      "failures": []
+    },
+    {
+      "name": "recovery_02_malformed_csv",
+      "passed": true,
+      "status": "halted",
+      "findings_by_kind": {},
+      "recovery_invoked": false,
+      "cost_inr": 0.0,
+      "duration_s": 0.08,
+      "failures": []
+    },
+    {
+      "name": "recovery_03_tool_disabled",
+      "passed": true,
+      "status": "degraded",
+      "findings_by_kind": {},
+      "recovery_invoked": true,
+      "cost_inr": 0.0,
+      "duration_s": 0.12,
+      "failures": []
+    }
+  ]
+}

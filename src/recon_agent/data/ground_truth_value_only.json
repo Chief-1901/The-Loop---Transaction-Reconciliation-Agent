@@ -2,7 +2,7 @@
   "fixture_seed": 1005,
   "variant": "value_only",
   "total_txns": 500,
-  "generated_at": "2026-05-23T21:53:42.132930+00:00",
+  "generated_at": "2026-05-24T01:15:17.387264+00:00",
   "expected_summary": {
     "value_mismatch": 15,
     "_total": 15

@@ -1,8 +1,8 @@
 {
-  "fixture_seed": 1,
+  "fixture_seed": 1001,
   "variant": "happy_clean",
-  "total_txns": 20,
-  "generated_at": "2026-05-23T22:22:03.359979+00:00",
+  "total_txns": 500,
+  "generated_at": "2026-05-24T01:15:16.797508+00:00",
   "expected_summary": {
     "_total": 0
   },

@@ -2,44 +2,57 @@
 
 | Subtask | Provider | Model | Cost ($/M in, $/M out) | Why this model |
 |---------|----------|-------|------------------------|----------------|
-| `plan` | Google | gemini-2.5-flash-lite | $0.01 / $0.04 | Cheapest tier in the Flash family. Generous free-tier daily quota. Structured-output reliability is sufficient for ReAct's constrained single-step planning. |
-| `decide` | Google | gemini-2.5-flash-lite | $0.01 / $0.04 | Binary HALT-vs-PLAN decision gated by structured-output schema; flash-lite is sufficient and in-family with plan. |
+| `plan` | OpenRouter | openai/gpt-oss-120b:free | $0 (free tier) | OpenAI's GPT-OSS-120B via OpenRouter free tier. Native structured-output + function-calling. 200 req/day quota is sufficient for cassette recording and demo workloads. Reliable JSON schema compliance avoids the brittle prompt-engineering required by smaller free models. |
+| `decide` | OpenRouter | openai/gpt-oss-120b:free | $0 (free tier) | Binary HALT/PLAN meta-decision; same model as plan amortizes the OpenRouter client. |
 | `classify` | OpenAI | gpt-4o-mini | $0.15 / $0.60 | High-volume cheap structured JSON via OpenAI's `json_schema strict` mode. Output is a fixed Pydantic enum; minimal reasoning required. |
-| `propose` | Google | gemini-2.5-flash-lite | $0.01 / $0.04 | Per-correction call; many of them; cheapest available Gemini model in-family with plan/decide. |
-| `summary` | Google | gemini-2.5-flash-lite | $0.01 / $0.04 | One call at end; natural-language only. In-family. |
-| `shadow_plan` | OpenAI | gpt-4o | $2.50 / $10.00 | Capable-tier comparison vs Gemini flash-lite on Plan. Only invoked when `--shadow` is set. |
+| `propose` | OpenRouter | openai/gpt-oss-120b:free | $0 (free tier) | Per-correction LLM call; in-family with plan/decide; free tier handles per-discrepancy proposals. |
+| `summary` | OpenRouter | openai/gpt-oss-120b:free | $0 (free tier) | One natural-language summary call at end. In-family with plan/decide. |
+| `shadow_plan` | OpenAI | gpt-4o | $2.50 / $10.00 | Capable-tier shadow comparison vs gpt-oss-120b on Plan. Only invoked when `--shadow` is set. |
 
-## Why two providers, not four
+## Why OpenRouter + OpenAI, not Gemini
 
-The rubric rewards "4+ providers used deliberately". The keyword is **deliberately**. Adding Groq for shadow-Decide and DeepSeek for error parsing would be subtasks-in-search-of-a-provider. The brief itself warns against this anti-pattern: "Using GPT-4o for everything shows a lack of judgment" — and the same applies to using four providers when two are doing real work.
+The initial prototype used Gemini 2.5 Flash Lite for plan/decide/propose. After cassette recording, two issues surfaced:
 
-Instead, the 2-provider story is tight: each provider has multiple justified subtasks, costs tracked per task, shadow comparison statistically validates the Plan-phase choice. See `reports/shadow_comparison_*.md` for the statistical artifact.
+1. **Quota exhaustion** — Flash Lite's daily free quota (~50-200 req/day depending on AI Studio tier) ran out during the 12-scenario recording sweep (~360 LLM calls total).
+2. **Structured-output gaps** — Gemini's json_schema mode occasionally returned malformed JSON for complex nested schemas (e.g., `propose_correction`'s `CorrectionProposal`).
 
-## Why flash-lite over flash or pro for Plan/Decide
+We switched the main plan/decide/propose/summary subtasks to **openai/gpt-oss-120b:free** via OpenRouter, which resolved both issues. GPT-OSS-120B's free tier provides 200 req/day and reliable structured-output via the OpenAI-compatible `/v1/chat/completions` endpoint.
 
-The original design routed Plan + Decide to Gemini 2.5 Pro. We moved through three model choices during development and settled on **flash-lite**. Honest reasoning:
+`classify` remains on **gpt-4o-mini** via the direct OpenAI API, where OpenAI's strict `json_schema` enforcement gives the highest-reliability batch enum classification (no retry logic needed).
 
-1. **Cost** — flash-lite is **~8x cheaper than flash** ($0.01/M vs $0.075/M input) and **~125x cheaper than Pro** ($0.01/M vs $1.25/M input). At the scale GrabOn's brief describes (96M txns/year), this gap compounds into real money.
+## Why gpt-oss-120b over other free OpenRouter models
 
-2. **Free-tier quota** — Pro's daily quota on AI Studio free tier is ~50 req/day. Standard Flash is ~20 req/day. flash-lite has substantially more headroom — enough for cassette recording (~360 calls across 12 scenarios) in a single sitting without billing.
+During cassette recording we evaluated several free-tier models on OpenRouter:
 
-3. **Sufficient quality for ReAct** — Plan picks ONE tool from a fixed set of ~8 options. Decide picks ONE of {HALT, PLAN}. Both are constrained by Pydantic structured-output schemas. There's no open-ended generation where Pro's reasoning premium would actually matter — the decision space is tiny.
+| Model | Outcome |
+|-------|---------|
+| `openai/gpt-oss-120b:free` | ✓ Works — reliable JSON, 200 req/day |
+| `openai/gpt-oss-20b:free` | Same JSON issues as 120b (smaller model) |
+| `meta-llama/llama-3.3-70b:free` | 429 rate-limit errors on burst workloads |
+| `google/gemini-2.0-flash:free` | 404 / model not available on free tier |
+| `deepseek/deepseek-chat:free` | API key not valid / 402 payment required |
 
-4. **In-family routing** — keeping plan/decide/propose/summary all on Gemini flash-lite amortizes the SDK client, simplifies the prompt-cache story, and gives a single cohesive provider story.
+gpt-oss-120b struck the right balance: adequate structured-output quality, sufficient free quota, OpenAI-compatible API (reuses existing `openrouter_call()` adapter).
 
-The shadow-comparison artifact (`reports/shadow_comparison_*.md`) empirically validates this choice: if flash-lite-Plan performs statistically worse than GPT-4o-Plan, the verdict line will say so and we'd revisit. If it doesn't, flash-lite stays.
+## `OPENROUTER_MODEL` env override
 
-## `GEMINI_MODEL` env override
-
-Set `GEMINI_MODEL=gemini-2.5-flash` (or any other Gemini model in the pricing table) to swap the default at runtime — useful for ad-hoc testing or if flash-lite ever hits a quota wall. The override applies to all Gemini-routed subtasks (plan, decide, propose, summary).
+Set `OPENROUTER_MODEL=<model-id>` to swap the default at runtime — useful for testing other OpenRouter free models without code changes. The override applies to all OpenRouter-routed subtasks (plan, decide, propose, summary).
 
 ## `PLAN_PROVIDER=openai` override
 
-Set `PLAN_PROVIDER=openai` to force the `plan` subtask (ONLY) to use `gpt-4o`. This is the lever the shadow-comparison eval pulls to record "config_b" cassettes. Other subtasks remain on default Gemini routes.
+Set `PLAN_PROVIDER=openai` to force the `plan` subtask (ONLY) to use `gpt-4o`. This is the lever the shadow-comparison eval pulls to record "config_b" cassettes. Other subtasks remain on default OpenRouter routes.
+
+## Robustness measures added for free-tier models
+
+Free-tier models on OpenRouter occasionally return empty content or malformed JSON. `providers.py` adds:
+
+- **3-retry loop** in `openrouter_call()` with 0.5s sleep between attempts — catches transient empty-content responses.
+- **`_simplify_schema_for_openrouter()`** — strips `anyOf: [{type: null}]` constructs (Pydantic's Optional encoding) before sending the schema; prevents models from outputting `{"type": "null"}` instead of JSON `null`.
+- Standard **RateLimitError / APITimeoutError** handling mapped to `LLMError` with `retriable=True`.
 
 ## Switching providers entirely
 
-Want to swap Gemini for Claude on Plan?
+Want to swap OpenRouter for Claude on Plan?
 
 1. Add `claude_call(...)` adapter to `src/recon_agent/llm/providers.py` (~30 LOC)
 2. Add pricing entries to `src/recon_agent/llm/pricing.py`

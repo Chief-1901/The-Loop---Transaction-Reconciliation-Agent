@@ -2,7 +2,7 @@
   "fixture_seed": 1003,
   "variant": "encoding_only",
   "total_txns": 500,
-  "generated_at": "2026-05-23T21:53:42.073111+00:00",
+  "generated_at": "2026-05-24T01:15:17.053052+00:00",
   "expected_summary": {
     "encoding_corruption": 5,
     "_total": 5

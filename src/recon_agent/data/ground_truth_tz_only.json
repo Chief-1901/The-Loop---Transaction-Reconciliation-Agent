@@ -1,26 +1,410 @@
 {
-  "fixture_seed": 99,
+  "fixture_seed": 1002,
   "variant": "tz_only",
-  "total_txns": 20,
-  "generated_at": "2026-05-23T22:22:10.747272+00:00",
+  "total_txns": 500,
+  "generated_at": "2026-05-24T01:15:16.863922+00:00",
   "expected_summary": {
-    "timezone_shift": 1,
-    "_total": 1
+    "timezone_shift": 25,
+    "_total": 25
   },
   "injected": [
     {
-      "txn_id": "TX-2026-00017",
+      "txn_id": "TX-2026-00120",
       "kind": "timezone_shift",
       "csv": {
-        "redemption_ts": "2026-04-20T21:53:48+05:30"
+        "redemption_ts": "2026-04-12T19:14:40+05:30"
       },
       "api": {
-        "settled_at": "2026-04-20T21:53:48+00:00"
+        "settled_at": "2026-04-12T19:14:40+00:00"
       },
       "expected_correction": {
         "field": "settled_at",
-        "old": "2026-04-20T21:53:48+00:00",
-        "new": "2026-04-20T16:23:48+00:00",
+        "old": "2026-04-12T19:14:40+00:00",
+        "new": "2026-04-12T13:44:40+00:00",
+        "reason_contains": "ist_stored_as_utc"
+      }
+    },
+    {
+      "txn_id": "TX-2026-00022",
+      "kind": "timezone_shift",
+      "csv": {
+        "redemption_ts": "2026-04-01T13:45:02+05:30"
+      },
+      "api": {
+        "settled_at": "2026-04-01T13:45:02+00:00"
+      },
+      "expected_correction": {
+        "field": "settled_at",
+        "old": "2026-04-01T13:45:02+00:00",
+        "new": "2026-04-01T08:15:02+00:00",
+        "reason_contains": "ist_stored_as_utc"
+      }
+    },
+    {
+      "txn_id": "TX-2026-00443",
+      "kind": "timezone_shift",
+      "csv": {
+        "redemption_ts": "2026-04-22T20:16:13+05:30"
+      },
+      "api": {
+        "settled_at": "2026-04-22T20:16:13+00:00"
+      },
+      "expected_correction": {
+        "field": "settled_at",
+        "old": "2026-04-22T20:16:13+00:00",
+        "new": "2026-04-22T14:46:13+00:00",
+        "reason_contains": "ist_stored_as_utc"
+      }
+    },
+    {
+      "txn_id": "TX-2026-00156",
+      "kind": "timezone_shift",
+      "csv": {
+        "redemption_ts": "2026-05-01T10:22:40+05:30"
+      },
+      "api": {
+        "settled_at": "2026-05-01T10:22:40+00:00"
+      },
+      "expected_correction": {
+        "field": "settled_at",
+        "old": "2026-05-01T10:22:40+00:00",
+        "new": "2026-05-01T04:52:40+00:00",
+        "reason_contains": "ist_stored_as_utc"
+      }
+    },
+    {
+      "txn_id": "TX-2026-00304",
+      "kind": "timezone_shift",
+      "csv": {
+        "redemption_ts": "2026-04-17T21:38:43+05:30"
+      },
+      "api": {
+        "settled_at": "2026-04-17T21:38:43+00:00"
+      },
+      "expected_correction": {
+        "field": "settled_at",
+        "old": "2026-04-17T21:38:43+00:00",
+        "new": "2026-04-17T16:08:43+00:00",
+        "reason_contains": "ist_stored_as_utc"
+      }
+    },
+    {
+      "txn_id": "TX-2026-00499",
+      "kind": "timezone_shift",
+      "csv": {
+        "redemption_ts": "2026-04-27T09:52:58+05:30"
+      },
+      "api": {
+        "settled_at": "2026-04-27T09:52:58+00:00"
+      },
+      "expected_correction": {
+        "field": "settled_at",
+        "old": "2026-04-27T09:52:58+00:00",
+        "new": "2026-04-27T04:22:58+00:00",
+        "reason_contains": "ist_stored_as_utc"
+      }
+    },
+    {
+      "txn_id": "TX-2026-00107",
+      "kind": "timezone_shift",
+      "csv": {
+        "redemption_ts": "2026-04-15T10:14:58+05:30"
+      },
+      "api": {
+        "settled_at": "2026-04-15T10:14:58+00:00"
+      },
+      "expected_correction": {
+        "field": "settled_at",
+        "old": "2026-04-15T10:14:58+00:00",
+        "new": "2026-04-15T04:44:58+00:00",
+        "reason_contains": "ist_stored_as_utc"
+      }
+    },
+    {
+      "txn_id": "TX-2026-00136",
+      "kind": "timezone_shift",
+      "csv": {
+        "redemption_ts": "2026-04-20T14:38:41+05:30"
+      },
+      "api": {
+        "settled_at": "2026-04-20T14:38:41+00:00"
+      },
+      "expected_correction": {
+        "field": "settled_at",
+        "old": "2026-04-20T14:38:41+00:00",
+        "new": "2026-04-20T09:08:41+00:00",
+        "reason_contains": "ist_stored_as_utc"
+      }
+    },
+    {
+      "txn_id": "TX-2026-00263",
+      "kind": "timezone_shift",
+      "csv": {
+        "redemption_ts": "2026-04-04T21:57:51+05:30"
+      },
+      "api": {
+        "settled_at": "2026-04-04T21:57:51+00:00"
+      },
+      "expected_correction": {
+        "field": "settled_at",
+        "old": "2026-04-04T21:57:51+00:00",
+        "new": "2026-04-04T16:27:51+00:00",
+        "reason_contains": "ist_stored_as_utc"
+      }
+    },
+    {
+      "txn_id": "TX-2026-00223",
+      "kind": "timezone_shift",
+      "csv": {
+        "redemption_ts": "2026-04-13T18:49:50+05:30"
+      },
+      "api": {
+        "settled_at": "2026-04-13T18:49:50+00:00"
+      },
+      "expected_correction": {
+        "field": "settled_at",
+        "old": "2026-04-13T18:49:50+00:00",
+        "new": "2026-04-13T13:19:50+00:00",
+        "reason_contains": "ist_stored_as_utc"
+      }
+    },
+    {
+      "txn_id": "TX-2026-00065",
+      "kind": "timezone_shift",
+      "csv": {
+        "redemption_ts": "2026-04-03T09:02:05+05:30"
+      },
+      "api": {
+        "settled_at": "2026-04-03T09:02:05+00:00"
+      },
+      "expected_correction": {
+        "field": "settled_at",
+        "old": "2026-04-03T09:02:05+00:00",
+        "new": "2026-04-03T03:32:05+00:00",
+        "reason_contains": "ist_stored_as_utc"
+      }
+    },
+    {
+      "txn_id": "TX-2026-00296",
+      "kind": "timezone_shift",
+      "csv": {
+        "redemption_ts": "2026-04-05T13:00:49+05:30"
+      },
+      "api": {
+        "settled_at": "2026-04-05T13:00:49+00:00"
+      },
+      "expected_correction": {
+        "field": "settled_at",
+        "old": "2026-04-05T13:00:49+00:00",
+        "new": "2026-04-05T07:30:49+00:00",
+        "reason_contains": "ist_stored_as_utc"
+      }
+    },
+    {
+      "txn_id": "TX-2026-00135",
+      "kind": "timezone_shift",
+      "csv": {
+        "redemption_ts": "2026-04-14T12:57:03+05:30"
+      },
+      "api": {
+        "settled_at": "2026-04-14T12:57:03+00:00"
+      },
+      "expected_correction": {
+        "field": "settled_at",
+        "old": "2026-04-14T12:57:03+00:00",
+        "new": "2026-04-14T07:27:03+00:00",
+        "reason_contains": "ist_stored_as_utc"
+      }
+    },
+    {
+      "txn_id": "TX-2026-00369",
+      "kind": "timezone_shift",
+      "csv": {
+        "redemption_ts": "2026-04-28T14:28:49+05:30"
+      },
+      "api": {
+        "settled_at": "2026-04-28T14:28:49+00:00"
+      },
+      "expected_correction": {
+        "field": "settled_at",
+        "old": "2026-04-28T14:28:49+00:00",
+        "new": "2026-04-28T08:58:49+00:00",
+        "reason_contains": "ist_stored_as_utc"
+      }
+    },
+    {
+      "txn_id": "TX-2026-00025",
+      "kind": "timezone_shift",
+      "csv": {
+        "redemption_ts": "2026-04-18T13:27:58+05:30"
+      },
+      "api": {
+        "settled_at": "2026-04-18T13:27:58+00:00"
+      },
+      "expected_correction": {
+        "field": "settled_at",
+        "old": "2026-04-18T13:27:58+00:00",
+        "new": "2026-04-18T07:57:58+00:00",
+        "reason_contains": "ist_stored_as_utc"
+      }
+    },
+    {
+      "txn_id": "TX-2026-00306",
+      "kind": "timezone_shift",
+      "csv": {
+        "redemption_ts": "2026-04-13T22:44:39+05:30"
+      },
+      "api": {
+        "settled_at": "2026-04-13T22:44:39+00:00"
+      },
+      "expected_correction": {
+        "field": "settled_at",
+        "old": "2026-04-13T22:44:39+00:00",
+        "new": "2026-04-13T17:14:39+00:00",
+        "reason_contains": "ist_stored_as_utc"
+      }
+    },
+    {
+      "txn_id": "TX-2026-00170",
+      "kind": "timezone_shift",
+      "csv": {
+        "redemption_ts": "2026-04-26T22:49:41+05:30"
+      },
+      "api": {
+        "settled_at": "2026-04-26T22:49:41+00:00"
+      },
+      "expected_correction": {
+        "field": "settled_at",
+        "old": "2026-04-26T22:49:41+00:00",
+        "new": "2026-04-26T17:19:41+00:00",
+        "reason_contains": "ist_stored_as_utc"
+      }
+    },
+    {
+      "txn_id": "TX-2026-00206",
+      "kind": "timezone_shift",
+      "csv": {
+        "redemption_ts": "2026-04-24T10:56:10+05:30"
+      },
+      "api": {
+        "settled_at": "2026-04-24T10:56:10+00:00"
+      },
+      "expected_correction": {
+        "field": "settled_at",
+        "old": "2026-04-24T10:56:10+00:00",
+        "new": "2026-04-24T05:26:10+00:00",
+        "reason_contains": "ist_stored_as_utc"
+      }
+    },
+    {
+      "txn_id": "TX-2026-00082",
+      "kind": "timezone_shift",
+      "csv": {
+        "redemption_ts": "2026-04-30T09:18:16+05:30"
+      },
+      "api": {
+        "settled_at": "2026-04-30T09:18:16+00:00"
+      },
+      "expected_correction": {
+        "field": "settled_at",
+        "old": "2026-04-30T09:18:16+00:00",
+        "new": "2026-04-30T03:48:16+00:00",
+        "reason_contains": "ist_stored_as_utc"
+      }
+    },
+    {
+      "txn_id": "TX-2026-00175",
+      "kind": "timezone_shift",
+      "csv": {
+        "redemption_ts": "2026-04-06T14:05:29+05:30"
+      },
+      "api": {
+        "settled_at": "2026-04-06T14:05:29+00:00"
+      },
+      "expected_correction": {
+        "field": "settled_at",
+        "old": "2026-04-06T14:05:29+00:00",
+        "new": "2026-04-06T08:35:29+00:00",
+        "reason_contains": "ist_stored_as_utc"
+      }
+    },
+    {
+      "txn_id": "TX-2026-00461",
+      "kind": "timezone_shift",
+      "csv": {
+        "redemption_ts": "2026-04-25T18:46:44+05:30"
+      },
+      "api": {
+        "settled_at": "2026-04-25T18:46:44+00:00"
+      },
+      "expected_correction": {
+        "field": "settled_at",
+        "old": "2026-04-25T18:46:44+00:00",
+        "new": "2026-04-25T13:16:44+00:00",
+        "reason_contains": "ist_stored_as_utc"
+      }
+    },
+    {
+      "txn_id": "TX-2026-00106",
+      "kind": "timezone_shift",
+      "csv": {
+        "redemption_ts": "2026-04-24T16:46:17+05:30"
+      },
+      "api": {
+        "settled_at": "2026-04-24T16:46:17+00:00"
+      },
+      "expected_correction": {
+        "field": "settled_at",
+        "old": "2026-04-24T16:46:17+00:00",
+        "new": "2026-04-24T11:16:17+00:00",
+        "reason_contains": "ist_stored_as_utc"
+      }
+    },
+    {
+      "txn_id": "TX-2026-00013",
+      "kind": "timezone_shift",
+      "csv": {
+        "redemption_ts": "2026-04-11T19:47:15+05:30"
+      },
+      "api": {
+        "settled_at": "2026-04-11T19:47:15+00:00"
+      },
+      "expected_correction": {
+        "field": "settled_at",
+        "old": "2026-04-11T19:47:15+00:00",
+        "new": "2026-04-11T14:17:15+00:00",
+        "reason_contains": "ist_stored_as_utc"
+      }
+    },
+    {
+      "txn_id": "TX-2026-00124",
+      "kind": "timezone_shift",
+      "csv": {
+        "redemption_ts": "2026-04-14T12:05:24+05:30"
+      },
+      "api": {
+        "settled_at": "2026-04-14T12:05:24+00:00"
+      },
+      "expected_correction": {
+        "field": "settled_at",
+        "old": "2026-04-14T12:05:24+00:00",
+        "new": "2026-04-14T06:35:24+00:00",
+        "reason_contains": "ist_stored_as_utc"
+      }
+    },
+    {
+      "txn_id": "TX-2026-00182",
+      "kind": "timezone_shift",
+      "csv": {
+        "redemption_ts": "2026-04-24T14:15:42+05:30"
+      },
+      "api": {
+        "settled_at": "2026-04-24T14:15:42+00:00"
+      },
+      "expected_correction": {
+        "field": "settled_at",
+        "old": "2026-04-24T14:15:42+00:00",
+        "new": "2026-04-24T08:45:42+00:00",
         "reason_contains": "ist_stored_as_utc"
       }
     }

@@ -2,7 +2,7 @@
   "fixture_seed": 4001,
   "variant": "corrupted_source",
   "total_txns": 500,
-  "generated_at": "2026-05-23T21:53:42.156814+00:00",
+  "generated_at": "2026-05-24T01:15:18.025260+00:00",
   "expected_summary": {
     "_total": 0
   },

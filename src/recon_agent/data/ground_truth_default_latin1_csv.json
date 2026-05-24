@@ -2,7 +2,7 @@
   "fixture_seed": 2002,
   "variant": "default_latin1_csv",
   "total_txns": 500,
-  "generated_at": "2026-05-23T21:53:42.240133+00:00",
+  "generated_at": "2026-05-24T01:15:21.860879+00:00",
   "expected_summary": {
     "value_mismatch": 15,
     "timezone_shift": 25,

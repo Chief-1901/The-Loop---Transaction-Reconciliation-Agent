@@ -186,72 +186,75 @@ Uses MagicMock router. Faster but less authentic. Adjust narration to say "the l
 
 ## SCENE 2 — Show Failure + Recovery (3-5 min)
 
-**Goal:** Show that the agent handles tool failures gracefully — retries, replans, doesn't crash. The `recovery_01_api_429` scenario was recorded against a 60% forced fetch_api failure rate, so the cassette has real failure-recovery behavior baked in.
+**Goal:** Show that the agent handles tool failures gracefully — retries, replans, eventually degrades — instead of crashing or looping forever.
+
+### Important honesty note — why we can't use the cassette here
+
+The `recovery_01_api_429` cassette was recorded with `FETCH_API_FAIL_RATE=0.0` because `fetch_api`'s RNG combines seed + wall-clock time, which makes failure timing non-deterministic across runs. If we recorded at 60% failure rate, replay would diverge from the recorded path on most runs (cassette miss → test fail).
+
+That trade-off is documented honestly inside `evals/scenarios/recovery_01_api_429.py` (read the docstring). Recovery is exercised by the integration test (`tests/integration/test_loop_recovery.py`) and by the demo script below.
+
+**For Scene 2 use the helper script, not the cassette.** It forces fetch_api to fail every time, shows the full retry → replan → degrade cascade visually, and uses real provider/model labels in the dashboard (just updated — `openrouter / openai/gpt-oss-120b:free`).
 
 ### Setup
 
 Same terminal as Scene 1. Clear: `cls`.
 
-### Step 1 — Set up the scene
+### Step 1 — Briefly explain what you're about to show
 
 **Talking points (your own words):**
 
-- This scenario is `recovery_01_api_429`
-- `fetch_api` was forced to fail at 60% during recording — simulating PayU's sandbox returning 429s like the brief describes
-- Cassette captured what the agent actually did across those failures
+- You want to demonstrate the recovery layer visibly
+- `fetch_api` will be forced to fail at 100% via the `FETCH_API_FAIL_RATE` env var (the tool's built-in chaos-injection knob)
+- The agent will retry with exponential backoff, replan, retry again, and eventually halt with `graceful degrade: 3+ consecutive failures`
+- This is the same recovery layer that runs in the eval suite and the integration tests — just with a mock LLM router so the demo is deterministic
 
-### Step 2 — Show the scenario spec briefly (proves it's real, not staged)
+### Step 2 — Optional: show the chaos knob in the source
 
 ```powershell
-Get-Content evals\scenarios\recovery_01_api_429.py
+Get-Content src\recon_agent\tools\fetch_api.py | Select-Object -First 80
 ```
 
 **Facts to mention:**
 
-- `cli_env={"FETCH_API_FAIL_RATE": "0.6", "FETCH_API_RNG_SEED": "1"}` — that's how the failure was injected
-- `expected.recovery_invoked=True` — the verifier asserts recovery actually fired
-- `findings_by_kind` and `findings_tolerance` — what the agent is expected to find (with tolerance for LLM variance)
+- `_fail_rate()` reads `FETCH_API_FAIL_RATE` env var (default 0.30)
+- `_disabled()` reads `FETCH_API_DISABLED` env var (the rubric's "disable a tool" stress-test)
+- On failure: returns `ToolResult(ok=False, error=ToolError(kind="transient", code="RATE_LIMIT"))`
+- The recovery classifier reads `kind` and `code` to pick a strategy
 
-### Step 3 — Run with the dashboard
+### Step 3 — Run the recovery demo
 
 ```powershell
-$env:LLM_MODE = "replay"
-.venv\Scripts\python -m evals.runner --scenario recovery_01_api_429 --dashboard --slow-ms 600
-Remove-Item Env:\LLM_MODE
+.venv\Scripts\python scripts\loom_scene2_recovery.py
 ```
+
+The script:
+- Forces `FETCH_API_FAIL_RATE=1.0` (every call fails)
+- Has a mock router that always plans `fetch_api` (no LLM cost)
+- Runs the real `AgentLoop`, real `Act` phase, real `RecoveryLayer`, real `Dashboard`
 
 **Facts to mention as the dashboard updates:**
 
-- Watch the tool table — fetch_api rows will have ERR markers (red) when 429 hit
-- Recovery dispatched: the classifier sees `transient RATE_LIMIT`, picks retry-with-backoff
-- Retry might succeed (different RNG result) — table shows the recovered call as a fresh row
-- After repeated failures: classifier escalates to replan, loop goes back to PLAN with a hint
-- Eventually completes — the agent works around the unreliable API and still produces results
+- Step 1: fetch_api fires, fails with `RATE_LIMIT`. Red `ERR` marker in the tool table
+- Recovery classifier sees transient error → dispatches retry with exponential backoff + jitter
+- Retry fires (visible as a new tool-call row a few seconds later)
+- After repeated failures on the same error code, the classifier escalates: "this transient is now persistent" → REPLAN
+- Loop jumps back to PLAN with a hint baked in
+- The mock planner stubbornly picks fetch_api again, so we get another cascade
+- After 3 consecutive failures of any kind → DEGRADE
+- Agent halts cleanly with `graceful degrade: 3+ consecutive failures`
 
-### Step 4 — When PASS prints, point to it
-
-**Facts to mention:**
-
-- Status: completed (or halted, depending on cassette specifics)
-- Recovery invoked: yes — verifier confirmed it
-- This is what the rubric means by "agent distinguishes error types and recovers"
-
-### Step 5 — Show the structured log to prove every recovery decision was logged
-
-```powershell
-$latest = Get-ChildItem reports\eval_* | Sort-Object LastWriteTime | Select-Object -Last 1
-Get-Content "$($latest.FullName)\recovery_01_api_429\log.jsonl" | Select-String "recovery.dispatched"
-```
+### Step 4 — When the summary prints, point to it
 
 **Facts to mention:**
 
-- Each line is one recovery decision: action (retry/replan/degrade), reason, hint
-- This is what observability means in the rubric — every decision auditable
-- A reviewer asking "at step N why did the agent X?" can grep this exact file
+- Halt reason: `graceful degrade: 3+ consecutive failures`
+- Status: halted (not crashed, not looping)
+- The runaway guard fired — the brief specifically tests this ("does the agent halt cleanly?")
 
-### Step 6 — Show the error→strategy table briefly
+### Step 5 — Show the error→strategy table
 
-Switch to your editor (or `cat` the file):
+Switch to editor (or run):
 
 ```powershell
 Get-Content docs\recovery_strategies.md | Select-Object -First 30
@@ -259,21 +262,39 @@ Get-Content docs\recovery_strategies.md | Select-Object -First 30
 
 **Facts to mention:**
 
-- This is the rule book — every error code mapped to a recovery strategy
-- 404 (API_NOT_FOUND) is persistent → replan, no retry (the rubric explicitly tests this)
-- 429 (RATE_LIMIT) is transient → retry with exponential backoff + jitter
-- 401 (API_AUTH) is fatal → degrade immediately
-- 3+ consecutive failures regardless of kind → degrade (the runaway guard)
+- This is the rule book — every error code mapped to a strategy
+- **404 (API_NOT_FOUND) is persistent → replan immediately, no retry** (the brief's "a 404 is not a rate limit" test)
+- **429 (RATE_LIMIT) is transient → retry with exp backoff + jitter**
+- **401 (API_AUTH) is fatal → degrade immediately**
+- **3+ consecutive failures regardless of kind → degrade** (what you just saw)
+
+### Step 6 — Optional: show the integration test that exercises real recovery
+
+```powershell
+Get-Content tests\integration\test_loop_recovery.py | Select-Object -First 40
+```
+
+**Facts to mention:**
+
+- This integration test exercises the full recovery path with real seeded failures and a mock router
+- Part of the 86 passing tests
+- Why we have it as a test instead of an eval cassette: the eval cassettes need deterministic replay, and fetch_api's RNG isn't fully deterministic
 
 **End Scene 2 recording.**
 
-### Fallback (Approach B — forced-failure cascade for a dramatic degrade visual)
+### If you really want to show recovery WITHOUT the mock script
+
+The integration test runs the same code paths but doesn't show the dashboard. You could also do this in real-time without scripts:
 
 ```powershell
-.venv\Scripts\python scripts\loom_scene2_recovery.py
+$env:FETCH_API_FAIL_RATE = "1.0"
+$env:LLM_MODE = "live"
+.venv\Scripts\recon demo --budget-tokens 5000 --budget-fails 10
+Remove-Item Env:\FETCH_API_FAIL_RATE
+Remove-Item Env:\LLM_MODE
 ```
 
-Forces 100% failure → guarantees the full retry → replan → degrade cascade. Use this if you specifically want the degrade path visible (real cassettes often recover before degrading). Be honest in narration: "I'm cranking the failure rate to 100% to show the full cascade in one demo."
+This is a real live run with real LLM calls + real fetch_api failures. Burns ~10 LLM calls (~₹0.05). Authentic but spends real tokens. Use only if your OpenRouter quota is healthy.
 
 ---
 

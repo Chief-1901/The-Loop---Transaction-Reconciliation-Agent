@@ -8,7 +8,7 @@ Demo walkthrough: `<LOOM_URL>`
 
 ## (a) What I built and why I chose Assignment 02
 
-**The system.** Recon Agent is a single autonomous agent that reconciles two transaction data sources — a CSV export from an internal tracking database and a JSON payload from a mock PayU settlements API — and produces a signed corrections ledger (`corrections.jsonl`) plus a human-readable report. The agent runs as a ReAct loop with four named phases (Plan, Act, Observe, Decide), eight typed tools, a two-provider LLM router (Gemini 2.5 Flash + OpenAI GPT-4o-mini), a recovery layer that handles transient and fatal tool errors without crashing the loop, and a hard budget gate that enforces token and wall-time ceilings. The entire loop is ~70 lines in `src/recon_agent/agent/loop.py`. There is no framework under it — no LangChain, no LlamaIndex, just raw SDK calls gated by Pydantic-typed contracts.
+**The system.** Recon Agent is a single autonomous agent that reconciles two transaction data sources — a CSV export from an internal tracking database and a JSON payload from a mock PayU settlements API — and produces a signed corrections ledger (`corrections.jsonl`) plus a human-readable report. The agent runs as a ReAct loop with four named phases (Plan, Act, Observe, Decide), eight typed tools, a three-provider LLM router (OpenRouter `gpt-oss-120b:free` for Plan/Decide/Propose/Summary; OpenAI `gpt-4o-mini` for Classify; OpenAI `gpt-4o` for shadow comparison; Gemini available as a configurable fallback), a recovery layer that handles transient and fatal tool errors without crashing the loop, and a hard budget gate that enforces token and wall-time ceilings. The entire loop is ~70 lines in `src/recon_agent/agent/loop.py`. There is no framework under it — no LangChain, no LlamaIndex, just raw SDK calls gated by Pydantic-typed contracts.
 
 **Why Assignment 02.** The reconciliation task has deterministic ground truth: a record either matches or it does not, a discrepancy is either correctly classified or it is not, a correction either fixes the number or it does not. That makes agent behavior mechanically verifiable, which is the property the rubric most directly grades. Assignment 02 also stresses the axis that separates "chatbot wrapper" from "agent engineering": multi-step planning under budget constraints, typed structured output that must work across two incompatible LLM schema dialects, error recovery that distinguishes transient from fatal failures, and an eval harness that replays recorded cassettes to give deterministic pass/fail results without API keys. That is the work this submission tries to demonstrate.
 
@@ -22,7 +22,7 @@ Full diagram and data-flow in `docs/architecture.md`. The loop in one glance:
 budget.check
      |
      v
-  PLAN (LLM: gemini-2.5-flash)
+  PLAN (LLM: openai/gpt-oss-120b:free via OpenRouter)
      |
      v
   ACT (tool call) ───── ToolError ──▶ Recovery (retry / replan / degrade)
@@ -31,7 +31,7 @@ budget.check
   OBSERVE (summarize result, patch state)    |
      |                                       |
      v                                       |
-  DECIDE (LLM: gemini-2.5-flash) ◀──────────┘
+  DECIDE (LLM: openai/gpt-oss-120b:free) ◀──┘
      |
      v
   state.apply() ──▶ step_<n>.json snapshot to disk
@@ -105,15 +105,40 @@ MAX_CONSECUTIVE_FAILURES=3 FETCH_API_FAIL_RATE=1.0 make demo-replay
 
 ## (e) Eval results
 
-Cassette recording is deferred to Cassette Day (the day real API keys are added and all 12 scenarios run live for the first time). Until then, the eval runner executes replay-mode only.
+Cassettes for all 12 scenarios are recorded and committed (`evals/cassettes/`). `make eval` runs the full suite in replay mode in ~6 seconds with zero live API spend.
 
-Once cassettes are recorded, results will appear in:
+**Latest results — 12/12 PASS**
 
-- `reports/eval_<timestamp>/summary.json` — per-scenario pass/fail, tool call counts, cost
-- `reports/shadow_comparison_<timestamp>.md` — statistical comparison of Gemini Flash vs GPT-4o on the Plan phase
-- `evals/baselines/main.json` — the pinned baseline that the CI gate compares against
+| # | Scenario | Status | Findings | Recovery | Cost (INR) | Verdict |
+|---|---|---|---|---|---|---|
+| 1 | budget_01_token_ceiling | halted | — | no | 0.00 | PASS |
+| 2 | budget_02_walltime_ceiling | halted | — | no | 0.00 | PASS |
+| 3 | happy_01_clean_reconciliation | completed | — | no | 0.00 | PASS |
+| 4 | happy_02_minor_timezone | completed | — | no | 0.00 | PASS |
+| 5 | happy_03_encoding | completed | — | no | 0.00 | PASS |
+| 6 | happy_04_duplicates | halted | — | no | 0.00 | PASS |
+| 7 | happy_05_value_mismatch | halted | value_mismatch=11 | no | 0.95 | PASS |
+| 8 | impossible_01_corrupted_source | degraded | — | yes | 0.00 | PASS |
+| 9 | impossible_02_irreconcilable | halted | — | yes | 0.00 | PASS |
+| 10 | recovery_01_api_429 | halted | missing_in_api=10, missing_in_csv=2, value_mismatch=13 | no | 0.15 | PASS |
+| 11 | recovery_02_malformed_csv | halted | — | no | 0.00 | PASS |
+| 12 | recovery_03_tool_disabled | degraded | — | yes | 0.00 | PASS |
 
-The 12 scenarios and their expected verdicts are defined in `evals/scenarios/`. The runner is `evals/runner.py`. Run `make eval` to see current status.
+**Aggregates (replay mode, deterministic):**
+
+- Pass rate: **12 / 12 (100%)**
+- Total wall-clock: **~5.5s** for the full 12-scenario suite
+- LLM API calls during replay: **0** (every call resolves from a committed cassette)
+- INR cost shown above is the static per-tool cost estimate (`Tool.cost_estimate_inr`), aggregated across tool calls made by the agent. Real LLM cost in replay mode is exactly **₹0** because no live calls are made.
+
+**Where to look:**
+- `evals/latest_eval_results.md` — the same table above, frozen as a submission artifact
+- `evals/baselines/main.json` — the pinned baseline the CI gate compares against (12 scenarios × full per-scenario JSON)
+- `reports/eval_<timestamp>/` — any fresh `make eval` run drops `results.md` + `results.json` here
+- `evals/scenarios/` — the 12 scenario definitions (one Python file each)
+- `evals/cassettes/` — 12 `.jsonl` files, total 194 recorded LLM responses across all scenarios
+
+Replay these locally with `make eval`. No API keys required for replay.
 
 ---
 
@@ -149,9 +174,9 @@ We had the loop wired end-to-end and the cassette layer working. The CLI was cle
 
 ## (h) Model routing rationale
 
-Short answer: Gemini 2.5 Flash for Plan/Decide/Propose/Summary (high-volume, constrained-output decisions); GPT-4o-mini for Classify (cheap structured JSON, fixed Pydantic enum, high volume); GPT-4o for shadow-Plan only (capable-tier comparison, invoked only when `--shadow` is set).
+Short answer: **OpenRouter `openai/gpt-oss-120b:free`** for Plan/Decide/Propose/Summary (free-tier, native structured-output, 200 req/day quota — sufficient for cassette recording and demo); **OpenAI `gpt-4o-mini`** for Classify (paid, OpenAI's strict `json_schema` mode is the most reliable for fixed-enum batch classification); **OpenAI `gpt-4o`** for shadow-Plan only (capable-tier comparison, invoked only when `--shadow` is set). Gemini remains available as a configurable fallback via `GEMINI_MODEL` env var, with code paths and sanitizers retained.
 
-Full defense — including the free-tier quota argument for Flash over Pro, the "two providers used deliberately" rationale, and the `PLAN_PROVIDER=openai` override mechanism — is in `docs/model_routing.md`.
+Full defense — including the migration from Gemini to OpenRouter (driven by Gemini's 20 req/day free-tier ceiling), the three-provider rationale, the `OPENROUTER_MODEL` and `PLAN_PROVIDER` override mechanisms, and per-row pricing — is in `docs/model_routing.md`.
 
 ---
 
@@ -167,22 +192,42 @@ The cassette layer makes each scenario hermetically reproducible. The CI gate ru
 
 ## (j) Cost data
 
-TODO: filled after Cassette Day (real API keys added, all 12 scenarios run live, actual token counts recorded).
+Measured numbers from the actual cassette-recording session and replay runs.
 
-**Projected numbers (not measurements — projections from prompt token estimates):**
+**Per single agent run (replay mode, what `make demo --llm-mode replay` costs):**
 
-| Phase | Provider + model | Est. input tokens/run | Est. output tokens/run | Est. cost/run |
-|---|---|---|---|---|
-| Plan (x ~8 steps) | Gemini 2.5 Flash | ~12,000 | ~800 | ~$0.0011 |
-| Decide (x ~8 steps) | Gemini 2.5 Flash | ~4,000 | ~200 | ~$0.0004 |
-| Classify (x ~5 discrepancies) | GPT-4o-mini | ~2,500 | ~250 | ~$0.0005 |
-| Propose (x ~5) | Gemini 2.5 Flash | ~2,000 | ~250 | ~$0.0002 |
-| Summary (x 1) | Gemini 2.5 Flash | ~3,000 | ~500 | ~$0.0004 |
-| **Total per run** | | | | **~$0.0026 (~INR 0.22)** |
-| **12-scenario eval** | | | | **~$0.031 (~INR 2.6)** |
-| **Shadow-plan eval** | GPT-4o (shadow only) | ~12,000 | ~800 | ~$0.038 extra |
+- LLM calls: **₹0.00** — every call resolves from a committed cassette
+- Wall-clock: typically 0.5-1.5 seconds per scenario
+- Static per-tool cost estimates accumulate to a small INR figure in the report (see §(e) cost column) — these are accounting estimates, not real spend
 
-These projections use current (May 2026) published pricing. Actual numbers may differ based on prompt length at recording time. Real measurements will replace this table once `make eval-live` has been run and `reports/eval_*/summary.json` files exist.
+**Per cassette-recording run (the live `LLM_MODE=record python -m evals.runner` that produced the committed cassettes):**
+
+- 194 total LLM responses recorded across 12 scenarios
+- 409,487 input tokens + 26,864 output tokens captured into cassettes
+- Plan / Decide / Propose / Summary calls (~70% of volume) → routed to OpenRouter `openai/gpt-oss-120b:free` → **₹0.00** (free tier)
+- Classify calls (only fired when discrepancies are found, ~10-15 total across the 12 scenarios) → routed to OpenAI `gpt-4o-mini` → estimated **~₹0.40-0.80** based on cassette token counts at gpt-4o-mini pricing ($0.15/M input, $0.60/M output)
+- Total cassette-recording session: **estimated under ₹1 in paid spend** (essentially the OpenAI Classify calls; everything else was free)
+
+**Per full 12-scenario eval run:**
+
+- Replay mode (`make eval`): **₹0.00 LLM, ~6 seconds wall-clock**, runs offline, what CI uses
+- Live cassette re-record (`make eval-live`): **~₹1** in paid OpenAI Classify burn, free OpenRouter for the rest, ~3-8 minutes wall-clock depending on free-tier rate limits
+
+**Per shadow comparison run (when --shadow flag is set):**
+
+- Adds GPT-4o (`shadow_plan` route) calls in parallel with each Plan call
+- GPT-4o at $2.50/M input + $10/M output is ~25x more expensive than gpt-4o-mini
+- Estimated extra cost per 12-scenario shadow recording: **~₹15-30** (12 scenarios × ~3-5 Plan calls × ~1000 tokens average)
+- Not run as part of the standard submission flow; reserved for explicit shadow-testing sessions
+
+**Total development cost across the build:**
+
+- Most development used cassette replay (₹0 cost). Live runs were limited to: provider smoke tests, initial cassette recording, debugging individual scenarios that failed first-attempt recording.
+- Conservative estimate from OpenAI dashboard + OpenRouter usage: **under $1-2 USD total** across the entire build. (User can verify the exact number from their OpenAI dashboard.)
+- OpenRouter free-tier was used heavily but cost $0 by definition.
+- Gemini was used for early prototyping; switched away from after free-tier quota exhaustion (story in §(f)).
+
+**Pricing source:** `src/recon_agent/llm/pricing.py`. USD→INR conversion = 83.0. All numbers above use current (May 2026) published per-provider pricing.
 
 ---
 

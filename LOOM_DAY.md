@@ -27,7 +27,7 @@ Open a PowerShell terminal in the project folder. Run these in order:
 ```powershell
 # 1. Verify Scene 1 — real cassette replay with dashboard + slow-mo for readability
 $env:LLM_MODE = "replay"
-.venv\Scripts\python -m evals.runner --scenario happy_02_minor_timezone --dashboard --slow-ms 800
+.venv\Scripts\python -m evals.runner --scenario happy_05_value_mismatch --dashboard --slow-ms 800
 Remove-Item Env:\LLM_MODE
 ```
 
@@ -121,20 +121,20 @@ Get-Content src\recon_agent\data\fixtures\payu_settlements.json -TotalCount 20
 
 ```powershell
 $env:LLM_MODE = "replay"
-.venv\Scripts\python -m evals.runner --scenario happy_02_minor_timezone --dashboard --slow-ms 800
+.venv\Scripts\python -m evals.runner --scenario happy_05_value_mismatch --dashboard --slow-ms 800
 Remove-Item Env:\LLM_MODE
 ```
 
 **Facts to mention as the dashboard appears + updates:**
 
 - Dashboard built with Rich (Python terminal library)
-- This is **cassette replay** — same code path as a live run, but reads recorded LLM responses from `evals/cassettes/happy_02_minor_timezone.jsonl` instead of calling APIs
+- This is **cassette replay** — same code path as a live run, but reads recorded LLM responses from `evals/cassettes/happy_05_value_mismatch.jsonl` instead of calling APIs
 - The cassette was recorded from real OpenRouter + OpenAI calls during cassette day
 - Top row: step counter, phase, tool count, LLM count, discrepancies found, corrections applied — all update live as the loop iterates
 - Tool table fills in step-by-step: each row is a real ToolCallRecord with name, status, latency
 - Budget bars in the middle: tokens / tool calls / cost — these are real consumed values
 - "Last reasoning" at bottom: the LLM's actual decision text from the cassette
-- The scenario name is `happy_02_minor_timezone` — focuses on timezone-shifted records (~25 of them)
+- The scenario name is `happy_05_value_mismatch` — fixture has ~15 transactions where the API's gross_amount differs from the CSV's order_value_inr (off-by-rounding errors). The agent will find these, classify them, propose corrections, and write them to the ledger.
 
 ### Step 5 — When PASS prints, point to it
 
@@ -146,23 +146,21 @@ Remove-Item Env:\LLM_MODE
 
 ### Step 6 — Show what the agent produced
 
-```powershell
-# Show the latest run directory
-Get-ChildItem reports\eval_* | Sort-Object LastWriteTime | Select-Object -Last 1
-```
+One-liner that handles state automatically — copy-paste safe:
 
 ```powershell
-# Show the corrections ledger the agent wrote
-$latest = Get-ChildItem reports\eval_* | Sort-Object LastWriteTime | Select-Object -Last 1
-Get-Content "$($latest.FullName)\happy_02_minor_timezone\corrections.jsonl" | Select-Object -First 3
+Get-Content (Get-ChildItem reports\eval_*\happy_05_value_mismatch\corrections.jsonl | Sort-Object LastWriteTime | Select-Object -Last 1) | Select-Object -First 3
 ```
+
+**Expected output:** 3 JSON objects, each one correction the agent applied. Real txn IDs like `TX-2026-00013`, real reasoning like "Resolved value mismatch between CSV and PayU API", real confidence scores (0.9-1.0), real timestamps.
 
 **Facts to mention:**
 
 - Each line in `corrections.jsonl` is one correction the agent proposed and applied
-- Fields: `txn_id`, `kind` (timezone_shift / value_mismatch / etc), `field`, `old`, `new`, `reason`, `confidence`, `applied_at`, `step`, `action`
-- This is append-only — the agent never mutates the source CSV or API records; everything goes through this ledger
+- Fields: `txn_id`, `kind`, `field`, `old`, `new`, `reason`, `confidence`, `applied_at`, `step`, `action`
+- This is **append-only** — the agent never mutates the source CSV or API records; everything goes through this ledger
 - A reviewer can `git diff` two run directories to compare exactly what differed
+- The `confidence` field gates application: below 0.7 the entry is recorded as `action="skipped"` instead of `"applied"` — visible audit trail, nothing silently dropped
 
 ### Step 7 — Wrap Scene 1
 

@@ -6,6 +6,66 @@ Demo walkthrough: `<LOOM_URL>`
 
 ---
 
+## Reviewer Quick Start (60-second orientation)
+
+**If you're reviewing this for GrabOn AI Labs, start here.** This block tells you the fastest path to verifying every claim.
+
+### Just want to see it run?
+
+```bash
+make setup              # 90 sec: venv + deps, copies .env.example to .env
+make eval               # 30 sec: replays 12 cassettes, prints 12/12 PASS, ZERO API spend
+```
+
+That's the canonical sanity check. No API keys needed — the cassettes (recorded LLM responses) are committed to the repo.
+
+### Want to read the code in tour order?
+
+1. **`src/recon_agent/agent/loop.py`** — the ~70-line agent loop (Plan → Act → Observe → Decide)
+2. **`src/recon_agent/agent/phases.py`** — the four phase classes
+3. **`src/recon_agent/tools/`** — 8 typed tools (each in its own file, one purpose)
+4. **`src/recon_agent/recovery/`** — `classifier.py` (error → strategy table) + `strategies.py` (retry / replan / degrade)
+5. **`src/recon_agent/llm/router.py`** — 3-provider routing table + cost tracking
+6. **`evals/scenarios/`** — 12 eval scenario definitions (5 happy / 3 recovery / 2 budget / 2 impossible)
+7. **`docs/architecture.md`** — data-flow diagram + module overview
+8. **`docs/model_routing.md`** — per-subtask provider/model rationale
+9. **`docs/recovery_strategies.md`** — full error code → strategy table
+
+### Want to verify a specific rubric claim?
+
+| If you want to verify... | Run / read this |
+|---|---|
+| "Agent loop is named abstraction with P/A/O/D phases" | `src/recon_agent/agent/loop.py` + `phases.py` |
+| "8 typed tools with structured errors" | `src/recon_agent/tools/*.py` — each has Pydantic input/output schemas |
+| "One unreliable tool fails 30% of the time" | `src/recon_agent/tools/fetch_api.py` — `_fail_rate()` reads `FETCH_API_FAIL_RATE` env var |
+| "3 failure-recovery strategies" | `src/recon_agent/recovery/strategies.py` — `RetryWithBackoff`, `ReplanWithAlternativeTool`, `GracefulDegrade` |
+| "Budget enforcement halts runaway" | `src/recon_agent/agent/budget.py` — checked at top of every loop iteration |
+| "404 vs 429 distinguished" | `docs/recovery_strategies.md` — full mapping table |
+| "12 eval scenarios pass" | `make eval` (or read `evals/latest_eval_results.md`) |
+| "CI gate blocks bad changes" | `.github/workflows/eval.yml` — runs evals on every PR |
+| "State management is versioned" | `src/recon_agent/agent/state.py` — `version` field bumps every `apply()`; snapshots at `reports/run_*/step_*.json` |
+| "Cost tracked per task type" | `src/recon_agent/llm/pricing.py` + `LLMCallRecord.cost_inr` |
+| "Real LLM responses in cassettes" | `evals/cassettes/*.jsonl` — committed, used by `make eval` |
+
+### Want a live agent run?
+
+```bash
+$EDITOR .env                # add OPENROUTER_API_KEY (https://openrouter.ai, free tier)
+                            # add OPENAI_API_KEY (https://platform.openai.com)
+make demo                   # live run, ~₹0.50-2 cost
+```
+
+### Process artifacts (transparency about how this was built)
+
+- `docs/superpowers/specs/2026-05-23-recon-agent-design.md` — design doc written upfront
+- `docs/superpowers/plans/2026-05-23-recon-agent-implementation.md` — phase-by-phase implementation plan
+- `docs/superpowers/brainstorming_log.md` — Q&A log from the design phase
+- `docs/challenge_brief.md` — the original challenge brief for context
+
+The full submission story — design decisions, what broke first, what I'd change — is in sections below.
+
+---
+
 ## (a) What I built and why I chose Assignment 02
 
 **The system.** Recon Agent is a single autonomous agent that reconciles two transaction data sources — a CSV export from an internal tracking database and a JSON payload from a mock PayU settlements API — and produces a signed corrections ledger (`corrections.jsonl`) plus a human-readable report. The agent runs as a ReAct loop with four named phases (Plan, Act, Observe, Decide), eight typed tools, a three-provider LLM router (OpenRouter `gpt-oss-120b:free` for Plan/Decide/Propose/Summary; OpenAI `gpt-4o-mini` for Classify; OpenAI `gpt-4o` for shadow comparison; Gemini available as a configurable fallback), a recovery layer that handles transient and fatal tool errors without crashing the loop, and a hard budget gate that enforces token and wall-time ceilings. The entire loop is ~70 lines in `src/recon_agent/agent/loop.py`. There is no framework under it — no LangChain, no LlamaIndex, just raw SDK calls gated by Pydantic-typed contracts.

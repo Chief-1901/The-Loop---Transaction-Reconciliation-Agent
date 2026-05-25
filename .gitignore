@@ -28,3 +28,9 @@ src/recon_agent/data/fixtures/*.json
 # Throwaway dev scripts and stray demo artifacts at repo root
 scripts/
 /corrections.jsonl
+
+# Author-only recording prep + interview cheat sheet (not for public repo)
+LOOM_DAY.md
+LOOM_SCRIPT.md
+CASSETTE_DAY.md
+DEEP_DIVE_PREP.md

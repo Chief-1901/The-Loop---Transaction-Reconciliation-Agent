@@ -2,7 +2,7 @@
 
 GrabOn AI Labs Challenge 02 — Transaction Reconciliation Agent.
 
-Demo walkthrough: `<LOOM_URL>`
+Demo walkthrough: https://www.loom.com/share/1734fdd2b879438f9321d5a4169b5c02
 
 ---
 
